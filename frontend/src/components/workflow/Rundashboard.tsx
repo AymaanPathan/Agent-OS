@@ -1,3 +1,4 @@
+/* eslint-disable react-hooks/refs */
 /* eslint-disable react-hooks/immutability */
 /* eslint-disable @typescript-eslint/no-explicit-any */
 "use client";
@@ -31,6 +32,7 @@ import {
   ArrowRight,
 } from "lucide-react";
 import { io, Socket } from "socket.io-client";
+import { MonitorDashboardPanel } from "../nodes/MonitorDashboardPanel";
 
 // ====================================
 // 🎯 TYPES
@@ -182,6 +184,14 @@ const nodeTypeConfig: Record<
     border: "border-teal-500/20",
     badge: "bg-teal-500/20 text-teal-300",
     label: "Health Scanner",
+  },
+  "monitor.continuous": {
+    icon: Activity,
+    color: "text-blue-400",
+    bg: "bg-blue-500/5",
+    border: "border-blue-500/20",
+    badge: "bg-blue-500/20 text-blue-300",
+    label: "Continuous Monitor",
   },
   default: {
     icon: Box,
@@ -864,6 +874,10 @@ export default function RunDashboard({
           </motion.div>
         ) : (
           <div className="max-w-4xl mx-auto space-y-3">
+            {/* ✅ ADD THIS: Monitor Dashboard Panel */}
+            <MonitorDashboardPanel socket={socketRef.current} runId={runId} />
+
+            {/* Existing node execution cards */}
             {sortedNodes.map((node, index) => (
               <NodeExecutionCard key={index} node={node} index={index} />
             ))}
