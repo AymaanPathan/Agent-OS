@@ -3,7 +3,7 @@ import { runDockerListAll } from "./docker.tool";
 import { runHttpHealthCheck } from "./httpHealth.tool";
 
 // ====================================
-// 🔡 CONTINUOUS MONITOR WITH SOCKET.IO
+// 🔡 CONTINUOUS MONITOR WITH ENHANCED METRICS
 // ====================================
 
 export type MonitorConfig = {
@@ -13,7 +13,25 @@ export type MonitorConfig = {
   autoFix?: boolean;
   containerFilters?: string;
   apiEndpoints?: Array<{ url: string; expectedStatus: number }>;
-  runId?: string; // Added for socket emission
+  runId?: string;
+};
+
+export type ContainerMetric = {
+  containerName: string;
+  dockerHealthy: boolean;
+  applicationHealthy: boolean;
+  cpuPercent: string;
+  memPercent: string;
+  severity: "HEALTHY" | "WARNING" | "CRITICAL";
+  timestamp: string;
+  httpHealthStatus?: {
+    checked: boolean;
+    healthy: boolean;
+    statusCode?: number;
+    responseTime?: number;
+    checkedUrl?: string;
+  };
+  issues?: string[];
 };
 
 export type MonitorState = {
@@ -26,7 +44,7 @@ export type MonitorState = {
     severity: "info" | "warning" | "critical";
     details: any;
   }>;
-  containerMetrics?: Map<string, any>;
+  containerMetrics?: Map<string, ContainerMetric>;
   autoFixesApplied?: number;
 };
 
@@ -127,21 +145,37 @@ export class ContinuousMonitor extends EventEmitter {
       `📦 [Monitor] Scanning ${result.containers.length} containers\n`,
     );
 
-    // Build container metrics
-    const metrics = new Map();
+    // Build detailed container metrics
+    const metrics = new Map<string, ContainerMetric>();
+    const metricsArray: ContainerMetric[] = [];
 
     for (const container of result.containers) {
       const isDockerHealthy = container.status === "running";
       const isAppHealthy = container.applicationHealthy !== false;
-      const severity =
+
+      // Determine issues
+      const issues: string[] = [];
+      if (!isDockerHealthy) {
+        issues.push(`Container not running (status: ${container.status})`);
+      }
+      if (container.health && container.health !== "healthy") {
+        issues.push(`Docker health: ${container.health}`);
+      }
+      if (!isAppHealthy) {
+        issues.push("Application health check failed");
+      }
+
+      // Determine severity
+      const cpuValue = parseFloat(container.cpuPercent || "0");
+      const memValue = parseFloat(container.memPercent || "0");
+      const severity: "HEALTHY" | "WARNING" | "CRITICAL" =
         !isDockerHealthy || !isAppHealthy
           ? "CRITICAL"
-          : parseFloat(container.cpuPercent || "0") > 80 ||
-              parseFloat(container.memPercent || "0") > 80
+          : cpuValue > 80 || memValue > 80
             ? "WARNING"
             : "HEALTHY";
 
-      metrics.set(container.name, {
+      const metric: ContainerMetric = {
         containerName: container.name,
         dockerHealthy: isDockerHealthy,
         applicationHealthy: isAppHealthy,
@@ -149,7 +183,11 @@ export class ContinuousMonitor extends EventEmitter {
         memPercent: container.memPercent || "0%",
         severity,
         timestamp: new Date().toISOString(),
-      });
+        issues: issues.length > 0 ? issues : undefined,
+      };
+
+      metrics.set(container.name, metric);
+      metricsArray.push(metric);
 
       // Console output
       console.log(`🔬 [Monitor] Analyzing: ${container.name}`);
@@ -163,12 +201,21 @@ export class ContinuousMonitor extends EventEmitter {
       if (!isDockerHealthy) {
         this.addAlert("critical", "Container not running", {
           containerName: container.name,
+          status: container.status,
           autoFixAvailable: this.config.autoFix,
         });
       } else if (!isAppHealthy) {
         this.addAlert("critical", "Application health check failing", {
           containerName: container.name,
           autoFixAvailable: this.config.autoFix,
+        });
+      } else if (cpuValue > 80) {
+        this.addAlert("warning", `High CPU usage: ${container.name}`, {
+          cpu: container.cpuPercent,
+        });
+      } else if (memValue > 80) {
+        this.addAlert("warning", `High memory usage: ${container.name}`, {
+          memory: container.memPercent,
         });
       }
     }
@@ -208,20 +255,6 @@ export class ContinuousMonitor extends EventEmitter {
           totalHealthy: result.healthyCount,
         });
       }
-
-      // High resource usage
-      for (const container of result.containers) {
-        if (container.cpuPercent && parseFloat(container.cpuPercent) > 80) {
-          this.addAlert("warning", `High CPU usage: ${container.name}`, {
-            cpu: container.cpuPercent,
-          });
-        }
-        if (container.memPercent && parseFloat(container.memPercent) > 80) {
-          this.addAlert("warning", `High memory usage: ${container.name}`, {
-            memory: container.memPercent,
-          });
-        }
-      }
     }
 
     this.previousState = result;
@@ -229,16 +262,19 @@ export class ContinuousMonitor extends EventEmitter {
     console.log("✅ [Monitor] Check completed");
     console.log(`   Total containers: ${result.containers.length}`);
     console.log(`   Healthy: ${result.healthyCount}`);
-    console.log(`   Warning: 0`);
+    console.log(
+      `   Warning: ${metricsArray.filter((m) => m.severity === "WARNING").length}`,
+    );
     console.log(`   Critical: ${result.unhealthyCount}`);
 
-    // Emit check completed event with full state
+    // Emit check completed event with enhanced metrics
     this.emit("check_completed", {
       type: "containers",
       result,
-      metrics: Array.from(metrics.values()),
+      metrics: metricsArray,
       alerts: this.state.alerts.slice(-5),
       timestamp: new Date().toISOString(),
+      checkNumber: this.state.checkCount,
     });
   }
 
@@ -270,14 +306,17 @@ export class ContinuousMonitor extends EventEmitter {
       type: "apis",
       results,
       alerts: this.state.alerts.slice(-5),
+      timestamp: new Date().toISOString(),
+      checkNumber: this.state.checkCount,
     });
   }
 
   private async checkResources() {
-    // Placeholder for system resource monitoring
     this.emit("check_completed", {
       type: "resources",
       message: "Resource monitoring not yet implemented",
+      timestamp: new Date().toISOString(),
+      checkNumber: this.state.checkCount,
     });
   }
 

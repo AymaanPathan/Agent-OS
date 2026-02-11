@@ -13,6 +13,7 @@ import {
   supportsFallbackRouting,
 } from "../lib/Nodefallbackroutes.backend";
 import { callA2AAgent } from "../engine/tools/a2a.client";
+import { io } from "../lib/socket";
 
 // ====================================
 // 🎯 ENHANCED RUN CONTEXT
@@ -930,6 +931,8 @@ export async function executeWorkflow(
           break;
         }
 
+        // In your executeWorkflow.ts, update the monitor.continuous case:
+
         case "monitor.continuous": {
           console.log("👁️ [Monitor] Starting continuous monitor");
           logger.toolStarted("Continuous Monitor", nodeId, config);
@@ -938,25 +941,69 @@ export async function executeWorkflow(
             targets: config.targets,
             interval: config.interval,
             alertOnChange: config.alertOnChange,
+            autoFix: config.autoFix,
             containerFilters: config.containerFilters,
             apiEndpoints: config.apiEndpoints,
+            runId, // ✅ Pass runId for socket emission
+          });
+
+          // ✅ CRITICAL: Setup socket bridge for real-time updates
+          monitor.on("check_completed", (data) => {
+            console.log(`📡 [Monitor] Broadcasting check to run: ${runId}`);
+
+            // Emit to Socket.IO
+            io.to(runId).emit("monitor_check_completed", {
+              runId,
+              checkNumber: monitor.getState().checkCount,
+              timestamp: new Date().toISOString(),
+              ...data,
+            });
           });
 
           monitor.on("alert", (alert) => {
-            console.log("🚨 [Monitor] Alert:", alert.message);
-            logger.log(
-              "warning",
-              `🚨 Monitor Alert: ${alert.message}`,
-              alert.details,
-            );
+            console.log(`📡 [Monitor] Broadcasting alert to run: ${runId}`);
+
+            io.to(runId).emit("monitor_alert", {
+              runId,
+              ...alert,
+            });
+          });
+
+          monitor.on("started", (data) => {
+            console.log(`📡 [Monitor] Broadcasting started to run: ${runId}`);
+
+            io.to(runId).emit("monitor_started", {
+              runId,
+              config: data.config,
+              timestamp: new Date().toISOString(),
+            });
+          });
+
+          monitor.on("stopped", (data) => {
+            console.log(`📡 [Monitor] Broadcasting stopped to run: ${runId}`);
+
+            io.to(runId).emit("monitor_stopped", {
+              runId,
+              finalState: data.state,
+              timestamp: new Date().toISOString(),
+            });
           });
 
           await monitor.start();
+
           success = true;
-          output = { status: "monitoring", monitorId: nodeId, success: true };
-          message = "Continuous monitoring started";
+          output = {
+            status: "monitoring",
+            monitorId: nodeId,
+            success: true,
+            checkInterval: config.interval,
+            targets: config.targets,
+          };
+          message = "✅ Continuous monitoring started";
+
           console.log("✅ [Monitor] Started successfully");
           logger.toolCompleted("Monitor", output, Date.now() - nodeStartTime);
+
           break;
         }
 
