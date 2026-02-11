@@ -174,7 +174,7 @@ mcpServer.registerTool(
       autoFix: args.autoFix,
       alertOnChange: args.alertOnChange,
       containerFilters: args.containerFilters,
-      thresholds: args.thresholds,
+      // thresholds: args.thresholds,
     });
 
     // Forward events to client
@@ -240,16 +240,16 @@ mcpServer.registerTool(
           text: JSON.stringify(
             {
               success: true,
-              metrics: Array.from(state.containerMetrics.values()),
-              totalContainers: state.containerMetrics.size,
-              healthyCount: Array.from(state.containerMetrics.values()).filter(
-                (m) => m.severity === "healthy",
+              metrics: Array.from(state?.containerMetrics!.values()),
+              totalContainers: state?.containerMetrics!.size,
+              healthyCount: Array.from(state?.containerMetrics!.values()).filter(
+                (m) => m.severity === "HEALTHY",
               ).length,
-              warningCount: Array.from(state.containerMetrics.values()).filter(
-                (m) => m.severity === "warning",
+              warningCount: Array.from(state?.containerMetrics!.values()).filter(
+                (m) => m.severity === "WARNING",
               ).length,
-              criticalCount: Array.from(state.containerMetrics.values()).filter(
-                (m) => m.severity === "critical",
+              criticalCount: Array.from(state?.containerMetrics!.values()).filter(
+                (m) => m.severity === "CRITICAL",
               ).length,
               autoFixesApplied: state.autoFixesApplied,
             },

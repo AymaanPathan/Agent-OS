@@ -6,14 +6,13 @@ import { monitorManager } from "../engine/tools/monitor.tool";
 import { executeMCPTool } from "../engine/tools/mcpTools.registry";
 
 import {
-  evaluateRouteCondition,
   findMatchingRoute,
-  resolveNextStep,
   getFallbackRoutes,
   supportsFallbackRouting,
 } from "../lib/Nodefallbackroutes.backend";
 import { callA2AAgent } from "../engine/tools/a2a.client";
 import { io } from "../lib/socket";
+import { setupMonitorSocketBridge } from "../lib/monitorSocketBridge";
 
 // ====================================
 // 🎯 ENHANCED RUN CONTEXT
@@ -944,50 +943,11 @@ export async function executeWorkflow(
             autoFix: config.autoFix,
             containerFilters: config.containerFilters,
             apiEndpoints: config.apiEndpoints,
-            runId, // ✅ Pass runId for socket emission
+            runId, // Pass runId for socket emission
           });
 
-          // ✅ CRITICAL: Setup socket bridge for real-time updates
-          monitor.on("check_completed", (data) => {
-            console.log(`📡 [Monitor] Broadcasting check to run: ${runId}`);
-
-            // Emit to Socket.IO
-            io.to(runId).emit("monitor_check_completed", {
-              runId,
-              checkNumber: monitor.getState().checkCount,
-              timestamp: new Date().toISOString(),
-              ...data,
-            });
-          });
-
-          monitor.on("alert", (alert) => {
-            console.log(`📡 [Monitor] Broadcasting alert to run: ${runId}`);
-
-            io.to(runId).emit("monitor_alert", {
-              runId,
-              ...alert,
-            });
-          });
-
-          monitor.on("started", (data) => {
-            console.log(`📡 [Monitor] Broadcasting started to run: ${runId}`);
-
-            io.to(runId).emit("monitor_started", {
-              runId,
-              config: data.config,
-              timestamp: new Date().toISOString(),
-            });
-          });
-
-          monitor.on("stopped", (data) => {
-            console.log(`📡 [Monitor] Broadcasting stopped to run: ${runId}`);
-
-            io.to(runId).emit("monitor_stopped", {
-              runId,
-              finalState: data.state,
-              timestamp: new Date().toISOString(),
-            });
-          });
+          // ✅ Setup socket bridge for real-time updates
+          setupMonitorSocketBridge(monitor, runId, io);
 
           await monitor.start();
 

@@ -307,7 +307,7 @@ export async function runHealthCheckScanner(
     // Determine which containers to scan
     if (config.scanAllRunning) {
       console.log("🔍 [HealthCheckScanner] Scanning all running containers");
-      const { stdout } = await execAsync('docker ps --format "{{.Names}}"');
+      const { stdout } = await execAsync("docker ps --format {{.Names}}");
       containerNames = stdout.trim().split("\n").filter(Boolean);
       console.log(
         `📦 [HealthCheckScanner] Found ${containerNames.length} running containers`,

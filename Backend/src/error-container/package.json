@@ -1,0 +1,11 @@
+{
+  "name": "error-simulator",
+  "version": "1.0.0",
+  "main": "chaos-container.js",
+  "scripts": {
+    "start": "node chaos-container.js"
+  },
+  "dependencies": {
+    "express": "^4.18.2"
+  }
+}
