@@ -50,6 +50,27 @@ export function setupSocketHandlers(io: Server) {
       },
     );
 
+    // ✅ NEW: Handle monitor control commands from frontend
+    socket.on("monitor_pause", (data: { runId: string; monitorId: string }) => {
+      console.log(`⏸️ Monitor pause requested:`, data);
+      // This could be used to pause/resume monitoring if you add that feature
+      io.to(data.runId).emit("monitor_paused", {
+        monitorId: data.monitorId,
+        timestamp: new Date().toISOString(),
+      });
+    });
+
+    socket.on(
+      "monitor_resume",
+      (data: { runId: string; monitorId: string }) => {
+        console.log(`▶️ Monitor resume requested:`, data);
+        io.to(data.runId).emit("monitor_resumed", {
+          monitorId: data.monitorId,
+          timestamp: new Date().toISOString(),
+        });
+      },
+    );
+
     // Disconnect handler
     socket.on("disconnect", () => {
       console.log(`🔌 Client disconnected: ${socket.id}`);
@@ -61,3 +82,17 @@ export function setupSocketHandlers(io: Server) {
 
 // Export io instance for use in other modules
 export { ioInstance as io };
+
+/**
+ * Emit a monitor event to all clients in a run room
+ * Used by monitorSocketBridge.ts
+ */
+export function emitMonitorEvent(runId: string, event: string, data: any) {
+  if (!ioInstance) {
+    console.warn("⚠️ Socket.IO not initialized, cannot emit monitor event");
+    return;
+  }
+
+  console.log(`📡 [Socket] Emitting ${event} to run: ${runId}`);
+  ioInstance.to(runId).emit(event, data);
+}
