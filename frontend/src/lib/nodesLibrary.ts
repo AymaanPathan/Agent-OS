@@ -99,8 +99,8 @@ export const nodesLibrary: NodeDefinition[] = [
   // MONITOR
   {
     type: "monitor.continuous",
-    label: "Continuous Monitor",
-    desc: "Monitor containers continuously",
+    label: "AI Monitor & Auto-Fix",
+    desc: "Advanced monitoring with AI-powered auto-healing",
     category: "Tools",
   },
 ];

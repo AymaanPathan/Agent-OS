@@ -126,6 +126,198 @@ mcpServer.registerTool(
   },
 );
 
+// Add after existing tools, before export
+
+// ===================================
+// ✅ ENHANCED MONITOR TOOLS
+// ===================================
+mcpServer.registerTool(
+  "monitor_start",
+  {
+    description: "Start advanced continuous monitor with AI auto-fix",
+    inputSchema: {
+      monitorId: z.string(),
+      targets: z.enum(["containers", "apis", "resources"]),
+      interval: z.number().default(30),
+      autoFix: z.boolean().default(true),
+      alertOnChange: z.boolean().default(true),
+      containerFilters: z.string().optional(),
+      thresholds: z
+        .object({
+          cpu: z.number().default(80),
+          memory: z.number().default(80),
+          restartCount: z.number().default(3),
+        })
+        .optional(),
+    },
+  },
+  async (args) => {
+    const existing = monitorManager.get(args.monitorId);
+    if (existing) {
+      return {
+        content: [
+          {
+            type: "text",
+            text: JSON.stringify(
+              { success: false, error: "Monitor already running" },
+              null,
+              2,
+            ),
+          },
+        ],
+      };
+    }
+
+    const monitor = monitorManager.create(args.monitorId, {
+      targets: args.targets,
+      interval: args.interval,
+      autoFix: args.autoFix,
+      alertOnChange: args.alertOnChange,
+      containerFilters: args.containerFilters,
+      thresholds: args.thresholds,
+    });
+
+    // Forward events to client
+    monitor.on("alert", (alert) => {
+      console.log("🚨 [Monitor] Alert:", alert);
+    });
+
+    monitor.on("auto_fix_attempted", ({ alert, result }) => {
+      console.log("🤖 [Monitor] Auto-fix attempted:", result);
+    });
+
+    await monitor.start();
+
+    return {
+      content: [
+        {
+          type: "text",
+          text: JSON.stringify(
+            {
+              success: true,
+              monitorId: args.monitorId,
+              status: "running",
+              autoFixEnabled: args.autoFix,
+            },
+            null,
+            2,
+          ),
+        },
+      ],
+    };
+  },
+);
+
+mcpServer.registerTool(
+  "monitor_get_metrics",
+  {
+    description: "Get current metrics for all monitored containers",
+    inputSchema: { monitorId: z.string() },
+  },
+  async (args) => {
+    const monitor = monitorManager.get(args.monitorId);
+    if (!monitor) {
+      return {
+        content: [
+          {
+            type: "text",
+            text: JSON.stringify(
+              { success: false, error: "Monitor not found" },
+              null,
+              2,
+            ),
+          },
+        ],
+      };
+    }
+
+    const state = monitor.getState();
+
+    return {
+      content: [
+        {
+          type: "text",
+          text: JSON.stringify(
+            {
+              success: true,
+              metrics: Array.from(state.containerMetrics.values()),
+              totalContainers: state.containerMetrics.size,
+              healthyCount: Array.from(state.containerMetrics.values()).filter(
+                (m) => m.severity === "healthy",
+              ).length,
+              warningCount: Array.from(state.containerMetrics.values()).filter(
+                (m) => m.severity === "warning",
+              ).length,
+              criticalCount: Array.from(state.containerMetrics.values()).filter(
+                (m) => m.severity === "critical",
+              ).length,
+              autoFixesApplied: state.autoFixesApplied,
+            },
+            null,
+            2,
+          ),
+        },
+      ],
+    };
+  },
+);
+
+mcpServer.registerTool(
+  "monitor_get_alerts",
+  {
+    description: "Get recent alerts from monitor",
+    inputSchema: {
+      monitorId: z.string(),
+      limit: z.number().default(50),
+      severity: z.enum(["info", "warning", "critical"]).optional(),
+    },
+  },
+  async (args) => {
+    const monitor = monitorManager.get(args.monitorId);
+    if (!monitor) {
+      return {
+        content: [
+          {
+            type: "text",
+            text: JSON.stringify(
+              { success: false, error: "Monitor not found" },
+              null,
+              2,
+            ),
+          },
+        ],
+      };
+    }
+
+    const state = monitor.getState();
+    let alerts = state.alerts;
+
+    if (args.severity) {
+      alerts = alerts.filter((a) => a.severity === args.severity);
+    }
+
+    alerts = alerts.slice(-args.limit);
+
+    return {
+      content: [
+        {
+          type: "text",
+          text: JSON.stringify(
+            {
+              success: true,
+              alerts,
+              totalAlerts: alerts.length,
+              criticalAlerts: alerts.filter((a) => a.severity === "critical")
+                .length,
+            },
+            null,
+            2,
+          ),
+        },
+      ],
+    };
+  },
+);
 mcpServer.registerTool(
   "docker_rollback",
   {

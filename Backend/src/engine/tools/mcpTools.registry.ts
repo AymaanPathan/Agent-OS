@@ -18,7 +18,8 @@ const toolNameMap: Record<string, string> = {
   "tool.dockerListAll": "agent-mesh-tools__docker_list_all",
   "tool.dockerBulkRestart": "agent-mesh-tools__docker_bulk_restart",
   "tool.dockerBulkLogs": "agent-mesh-tools__docker_bulk_logs",
-
+  "monitor.getMetrics": "agent-mesh-tools__monitor_get_metrics",
+  "monitor.getAlerts": "agent-mesh-tools__monitor_get_alerts",
   "tool.dockerStop": "agent-mesh-tools__docker_stop",
   "tool.dockerStart": "agent-mesh-tools__docker_start",
   "tool.dockerRemove": "agent-mesh-tools__docker_remove",
