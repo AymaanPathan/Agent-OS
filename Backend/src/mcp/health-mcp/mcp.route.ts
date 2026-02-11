@@ -576,70 +576,7 @@ mcpServer.registerTool(
   },
 );
 
-// ===================================
-// ✅ MONITOR TOOLS
-// ===================================
-mcpServer.registerTool(
-  "monitor_start",
-  {
-    description: "Start continuous monitor",
-    inputSchema: {
-      monitorId: z.string(),
-      targets: z.enum(["containers", "apis", "resources"]),
-      interval: z.number().default(30),
-      alertOnChange: z.boolean().default(true),
-      containerFilters: z.string().optional(),
-      apiEndpoints: z
-        .array(
-          z.object({
-            url: z.string(),
-            expectedStatus: z.number().default(200),
-          }),
-        )
-        .optional(),
-    },
-  },
-  async (args) => {
-    const existing = monitorManager.get(args.monitorId);
-    if (existing) {
-      return {
-        content: [
-          {
-            type: "text",
-            text: JSON.stringify(
-              { success: false, error: "Monitor already running" },
-              null,
-              2,
-            ),
-          },
-        ],
-      };
-    }
 
-    const monitor = monitorManager.create(args.monitorId, {
-      targets: args.targets,
-      interval: args.interval,
-      alertOnChange: args.alertOnChange,
-      containerFilters: args.containerFilters,
-      apiEndpoints: args.apiEndpoints,
-    });
-
-    await monitor.start();
-
-    return {
-      content: [
-        {
-          type: "text",
-          text: JSON.stringify(
-            { success: true, monitorId: args.monitorId, status: "running" },
-            null,
-            2,
-          ),
-        },
-      ],
-    };
-  },
-);
 
 mcpServer.registerTool(
   "monitor_stop",
