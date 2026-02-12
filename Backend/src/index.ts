@@ -11,6 +11,7 @@ import workflowRoutes from "./routes/workflow.routes";
 import runRoutes from "./routes/run.routes";
 import toolRoutes from "./routes/tool.route";
 import { monitorApiRouter } from "./routes/MonitorApi.routes";
+import historyRoutes from "./routes/History.routes";
 
 // Import socket handlers
 import { setupSocketHandlers } from "./lib/socket";
@@ -58,7 +59,8 @@ app.get("/health", (req, res) => {
 app.use("/api/workflows", workflowRoutes);
 app.use("/api/runs", runRoutes);
 app.use("/api/tools", toolRoutes);
-app.use("/api/monitor", monitorApiRouter); // ✅ Add monitor routes
+app.use("/api/monitor", monitorApiRouter);
+app.use("/api/history", historyRoutes); // ✅ Add history routes
 
 // Error handling middleware
 app.use(
@@ -78,7 +80,7 @@ app.use(
 
 // Setup Socket.IO handlers
 setupSocketHandlers(io);
-setupMonitorSocketHandlers(io); // ✅ Add monitor socket handlers
+setupMonitorSocketHandlers(io);
 
 // Database connection
 const MONGODB_URI =
@@ -107,6 +109,7 @@ httpServer.listen(PORT, () => {
 ║   Environment: ${process.env.NODE_ENV || "development"}                  ║
 ║   MongoDB: ${MONGODB_URI.includes("localhost") ? "Local" : "Remote"}                             ║
 ║   Monitor: Enabled                            ║
+║   History: Enabled                            ║
 ║                                               ║
 ╚═══════════════════════════════════════════════╝
   `);
