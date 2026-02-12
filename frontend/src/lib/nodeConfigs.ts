@@ -25,6 +25,235 @@ export type NodeConfig = {
 
 export const nodeConfigs: Record<string, NodeConfig> = {
   // TOOLS
+
+  "swarm.incidentCommander": {
+    title: "Incident Commander Swarm",
+    fields: [
+      {
+        key: "goal",
+        label: "Mission Objective",
+        type: "textarea",
+        default: "Handle container incidents automatically and safely",
+        placeholder: "Describe what this swarm should accomplish...",
+        helperText: "The high-level goal for the agent swarm",
+      },
+      {
+        key: "enabledAgents",
+        label: "Active Sub-Agents",
+        type: "multiselect",
+        default: ["healthScout", "logDetective", "recoveryStrategist"],
+        options: [
+          { label: "🏥 Health Scout", value: "healthScout" },
+          { label: "🔍 Log Detective", value: "logDetective" },
+          { label: "🛠️ Recovery Strategist", value: "recoveryStrategist" },
+          { label: "🔒 Security Auditor", value: "securityAuditor" },
+        ],
+        helperText: "Which specialized agents should be available",
+      },
+      {
+        key: "autoFixEnabled",
+        label: "Enable Auto-Fix",
+        type: "boolean",
+        default: false,
+        helperText: "Allow swarm to execute fixes automatically",
+      },
+      {
+        key: "approvalRequired",
+        label: "Require Approval for Destructive Actions",
+        type: "boolean",
+        default: true,
+        helperText: "Gate destructive actions behind human approval",
+      },
+      {
+        key: "confidenceThreshold",
+        label: "Auto-Fix Confidence Threshold",
+        type: "number",
+        default: 0.85,
+        helperText: "Minimum confidence (0-1) to auto-fix without approval",
+      },
+      {
+        key: "maxConcurrentAgents",
+        label: "Max Concurrent Agents",
+        type: "number",
+        default: 3,
+        helperText: "How many sub-agents can work in parallel",
+      },
+    ],
+  },
+
+  "swarm.autoHealer": {
+    title: "Auto-Healing Swarm",
+    fields: [
+      {
+        key: "monitorInterval",
+        label: "Scan Interval (seconds)",
+        type: "number",
+        default: 30,
+        helperText: "How often to check for issues",
+      },
+      {
+        key: "healingStrategy",
+        label: "Healing Strategy",
+        type: "select",
+        default: "progressive",
+        options: [
+          { label: "Conservative (restart only)", value: "conservative" },
+          { label: "Progressive (restart → rollback)", value: "progressive" },
+          { label: "Aggressive (rollback first)", value: "aggressive" },
+        ],
+      },
+      {
+        key: "maxHealAttempts",
+        label: "Max Healing Attempts",
+        type: "number",
+        default: 3,
+        helperText: "Stop after this many failed attempts",
+      },
+      {
+        key: "notifyOnHeal",
+        label: "Slack Notification on Heal",
+        type: "boolean",
+        default: true,
+      },
+    ],
+  },
+
+  "swarm.logInvestigator": {
+    title: "Log Investigation Team",
+    fields: [
+      {
+        key: "votingEnabled",
+        label: "Enable Agent Voting",
+        type: "boolean",
+        default: true,
+        helperText: "3 agents analyze independently and vote on root cause",
+      },
+      {
+        key: "analysisDepth",
+        label: "Analysis Depth",
+        type: "select",
+        default: "deep",
+        options: [
+          { label: "Quick Scan", value: "quick" },
+          { label: "Standard Analysis", value: "standard" },
+          { label: "Deep Investigation", value: "deep" },
+        ],
+      },
+      {
+        key: "logSources",
+        label: "Log Sources",
+        type: "textarea",
+        placeholder: "{{step.bulkLogs.logs}}",
+        helperText: "Template variable pointing to logs",
+      },
+    ],
+  },
+
+  // Individual Sub-Agents
+  "agent.healthScout": {
+    title: "Health Scout Agent",
+    fields: [
+      {
+        key: "scanScope",
+        label: "Scan Scope",
+        type: "select",
+        default: "all",
+        options: [
+          { label: "All Containers", value: "all" },
+          { label: "Running Only", value: "running" },
+          { label: "Specific Names", value: "specific" },
+        ],
+      },
+      {
+        key: "containerNames",
+        label: "Container Names (if specific)",
+        type: "textarea",
+        placeholder: "api-server, worker-1, cache",
+      },
+      {
+        key: "includeHttpChecks",
+        label: "Include HTTP Health Checks",
+        type: "boolean",
+        default: true,
+      },
+    ],
+  },
+
+  "agent.logDetective": {
+    title: "Log Detective Agent",
+    fields: [
+      {
+        key: "logs",
+        label: "Logs to Analyze",
+        type: "textarea",
+        placeholder: "{{step.healthScout.logs}}",
+      },
+      {
+        key: "focusAreas",
+        label: "Focus Areas",
+        type: "multiselect",
+        default: ["errors", "crashes"],
+        options: [
+          { label: "Errors", value: "errors" },
+          { label: "Crashes", value: "crashes" },
+          { label: "Performance", value: "performance" },
+          { label: "Security", value: "security" },
+        ],
+      },
+      {
+        key: "aiModel",
+        label: "AI Model",
+        type: "select",
+        default: "llama-3.3-70b-versatile",
+        options: [
+          { label: "Llama 3.3 70B (Fast)", value: "llama-3.3-70b-versatile" },
+          { label: "Llama 3.1 70B (Stable)", value: "llama-3.1-70b-versatile" },
+        ],
+      },
+    ],
+  },
+
+  "agent.recoveryStrategist": {
+    title: "Recovery Strategist Agent",
+    fields: [
+      {
+        key: "incidentContext",
+        label: "Incident Context",
+        type: "textarea",
+        placeholder: "{{step.logDetective.rootCause}}",
+        helperText: "What the detective found",
+      },
+      {
+        key: "riskTolerance",
+        label: "Risk Tolerance",
+        type: "select",
+        default: "low",
+        options: [
+          { label: "Low (safest)", value: "low" },
+          { label: "Medium", value: "medium" },
+          { label: "High (fastest)", value: "high" },
+        ],
+      },
+    ],
+  },
+
+  "agent.securityAuditor": {
+    title: "Security Auditor Agent",
+    fields: [
+      {
+        key: "auditScope",
+        label: "Audit Scope",
+        type: "multiselect",
+        default: ["permissions", "ports"],
+        options: [
+          { label: "Container Permissions", value: "permissions" },
+          { label: "Exposed Ports", value: "ports" },
+          { label: "Environment Variables", value: "env" },
+          { label: "Network Config", value: "network" },
+        ],
+      },
+    ],
+  },
   "tool.httpHealth": {
     title: "HTTP Health Check",
     fields: [

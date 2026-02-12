@@ -20,6 +20,7 @@ import {
   Zap,
   Wrench,
   ShieldCheck,
+  Users,
 } from "lucide-react";
 import {
   DndContext,
@@ -70,6 +71,7 @@ const categoryIcons: Record<string, any> = {
   Tools: Wrench,
   "Logic & Safety": ShieldCheck,
   Agents: Activity,
+  "Agent Swarms": Users,
 };
 
 const categoryMeta: Record<string, { color: string; bg: string }> = {
@@ -88,6 +90,10 @@ const categoryMeta: Record<string, { color: string; bg: string }> = {
   Agents: {
     color: "text-purple-600 dark:text-purple-400",
     bg: "bg-purple-50 dark:bg-purple-500/10",
+  },
+  "Agent Swarms": {
+    color: "text-blue-600 dark:text-blue-400",
+    bg: "bg-blue-50 dark:bg-blue-500/10",
   },
 };
 

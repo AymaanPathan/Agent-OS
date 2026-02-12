@@ -6,6 +6,7 @@ export const nodeCategories = [
   "Tools",
   "Logic & Safety",
   "Agents",
+  "Agent Swarms", // ✨ NEW CATEGORY
 ] as const;
 
 export type NodeCategory = (typeof nodeCategories)[number];
@@ -18,6 +19,50 @@ export type NodeDefinition = {
 };
 
 export const nodesLibrary: NodeDefinition[] = [
+  {
+    type: "swarm.incidentCommander",
+    label: "Incident Commander",
+    desc: "Orchestrates sub-agents to handle incidents autonomously",
+    category: "Agent Swarms",
+  },
+  {
+    type: "swarm.autoHealer",
+    label: "Auto-Healing Swarm",
+    desc: "Detects issues, analyzes, and auto-fixes with approval gates",
+    category: "Agent Swarms",
+  },
+  {
+    type: "swarm.logInvestigator",
+    label: "Log Investigation Team",
+    desc: "Multi-agent log analysis with voting consensus",
+    category: "Agent Swarms",
+  },
+
+  // Sub-Agents (can be used individually or within swarms)
+  {
+    type: "agent.healthScout",
+    label: "Health Scout",
+    desc: "Scans containers and reports health issues",
+    category: "Agents",
+  },
+  {
+    type: "agent.logDetective",
+    label: "Log Detective",
+    desc: "Deep log analysis with pattern recognition",
+    category: "Agents",
+  },
+  {
+    type: "agent.recoveryStrategist",
+    label: "Recovery Strategist",
+    desc: "Plans optimal recovery strategies based on incident type",
+    category: "Agents",
+  },
+  {
+    type: "agent.securityAuditor",
+    label: "Security Auditor",
+    desc: "Checks for security issues and misconfigurations",
+    category: "Agents",
+  },
   // TOOLS
   {
     type: "tool.httpHealth",
