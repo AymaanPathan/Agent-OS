@@ -8,7 +8,7 @@ const PORT = 8080;
 // ============================================================================
 // LOGGING UTILITIES - Ensures all logs are visible and properly formatted
 // ============================================================================
-
+// Container to generate error dynamically and should not stop and generate one error so its not stop
 /**
  * Force flush all logs immediately to stdout/stderr
  * This prevents Docker from buffering logs
@@ -100,14 +100,14 @@ dualLog(`
 ║                    🔥 CHAOS CONTAINER MENU 🔥                  ║
 ╚════════════════════════════════════════════════════════════════╝
 
-Available Chaos Modes (SAFE - Won't Kill Container):
+Available Chaos Modes (ONE-TIME ERRORS):
 
-  1 → 🔥 CPU Load         (Simulated CPU errors without saturation)
-  2 → 💾 Memory Errors    (Simulated memory issues without OOM)
-  3 → 🗄️  DB Failures     (Fast DB connection errors)
-  4 → ⛔ Timeout Errors   (Simulated slow responses)
-  5 → 💥 Exception Storm  (Continuous caught exceptions)
-  6 → 🌪️  All Chaos       (Everything at once!)
+  1 → 🔥 CPU Load         (ONE CPU error)
+  2 → 💾 Memory Errors    (ONE memory error)
+  3 → 🗄️  DB Failures     (ONE DB connection error)
+  4 → ⛔ Timeout Errors   (ONE timeout error)
+  5 → 💥 Exception Storm  (ONE exception error)
+  6 → 🌪️  All Chaos       (ONE error of each type!)
 
 Select ONE option (or press Enter for idle mode):
 `);
@@ -143,232 +143,192 @@ rl.question("Select: ", (ans) => {
 
   if (chaosMode !== "idle") {
     chaosStartTime = Date.now();
-    dualLog(
-      `✅ Chaos mode '${chaosMode}' started - container will run forever`,
-    );
+    dualLog(`✅ Chaos mode '${chaosMode}' started - error(s) generated`);
     dualLog(`🔍 Watch logs with: docker logs -f <container-name>`);
   }
 });
 
 // ============================================================================
-// CHAOS MODE 1: CPU ERRORS (SAFE)
+// CHAOS MODE 1: CPU ERRORS (ONE-TIME)
 // ============================================================================
 
 function cpuErrors() {
-  dualLog("🔥 CPU ERROR MODE ACTIVATED (SAFE)");
-  dualLog(
-    "   → Will simulate CPU errors every second without actual saturation",
+  dualLog("🔥 CPU ERROR MODE ACTIVATED");
+  dualLog("   → Will generate ONE CPU error");
+
+  errorCount++;
+
+  const cpuUsage = Math.floor(Math.random() * 40) + 60; // 60-100%
+  const responseTime = Math.floor(Math.random() * 500) + 200; // 200-700ms
+
+  forceLog(`❌ ERROR: CPU overload - High CPU usage detected`, true);
+  forceLog(
+    `   Simulated CPU: ${cpuUsage}% | Response time: ${responseTime}ms | Time: ${new Date().toISOString()}`,
+    true,
   );
 
-  let cycleCount = 0;
-
-  setInterval(() => {
-    cycleCount++;
-    errorCount++;
-
-    const cpuUsage = Math.floor(Math.random() * 40) + 60; // 60-100%
-    const responseTime = Math.floor(Math.random() * 500) + 200; // 200-700ms
-
-    forceLog(
-      `❌ ERROR: CPU overload cycle #${cycleCount} - High CPU usage detected`,
-      true,
-    );
-    forceLog(
-      `   Simulated CPU: ${cpuUsage}% | Response time: ${responseTime}ms | Time: ${new Date().toISOString()}`,
-      true,
-    );
-  }, 1000);
+  dualLog("✅ CPU error generated (ONE TIME ONLY)");
 }
 
 // ============================================================================
-// CHAOS MODE 2: MEMORY ERRORS (SAFE - NO ACTUAL LEAK)
+// CHAOS MODE 2: MEMORY ERRORS (ONE-TIME)
 // ============================================================================
 
 function memoryErrors() {
-  dualLog("💾 MEMORY ERROR MODE ACTIVATED (SAFE)");
-  dualLog(
-    "   → Will simulate memory errors every second without actual allocation",
+  dualLog("💾 MEMORY ERROR MODE ACTIVATED");
+  dualLog("   → Will generate ONE memory error");
+
+  errorCount++;
+
+  const memUsage = process.memoryUsage();
+  const simulatedLeak = Math.floor(Math.random() * 50) + 10; // 10-60MB
+
+  forceLog(`❌ ERROR: Memory allocation failure`, true);
+  forceLog(
+    `   Simulated leak: ${simulatedLeak}MB | Actual Heap: ${Math.round(memUsage.heapUsed / 1024 / 1024)}MB | RSS: ${Math.round(memUsage.rss / 1024 / 1024)}MB | Time: ${new Date().toISOString()}`,
+    true,
   );
 
-  let errorNumber = 0;
-
-  setInterval(() => {
-    errorNumber++;
-    errorCount++;
-
-    const memUsage = process.memoryUsage();
-    const simulatedLeak = Math.floor(Math.random() * 50) + 10; // 10-60MB
-
-    forceLog(`❌ ERROR: Memory allocation failure #${errorNumber}`, true);
-    forceLog(
-      `   Simulated leak: ${simulatedLeak}MB | Actual Heap: ${Math.round(memUsage.heapUsed / 1024 / 1024)}MB | RSS: ${Math.round(memUsage.rss / 1024 / 1024)}MB | Time: ${new Date().toISOString()}`,
-      true,
-    );
-  }, 1000);
+  dualLog("✅ Memory error generated (ONE TIME ONLY)");
 }
 
 // ============================================================================
-// CHAOS MODE 3: DATABASE ERRORS (SAFE - FAST FAIL)
+// CHAOS MODE 3: DATABASE ERRORS (ONE-TIME)
 // ============================================================================
 
 function dbErrors() {
-  dualLog("🗄️ DATABASE ERROR MODE ACTIVATED (SAFE)");
-  dualLog(
-    "   → Will generate DB connection errors every 500ms with instant fail",
-  );
+  dualLog("🗄️ DATABASE ERROR MODE ACTIVATED");
+  dualLog("   → Will generate ONE DB connection error");
 
-  let attemptCount = 0;
+  errorCount++;
 
-  setInterval(() => {
-    attemptCount++;
-    errorCount++;
+  // Create socket but destroy it immediately - no timeout waiting
+  const s = new net.Socket();
+  const startTime = Date.now();
 
-    // Create socket but destroy it immediately - no timeout waiting
-    const s = new net.Socket();
-    const attemptId = attemptCount;
-    const startTime = Date.now();
+  // Set very short timeout to fail fast
+  s.setTimeout(50); // Only 50ms timeout
 
-    // Set very short timeout to fail fast
-    s.setTimeout(50); // Only 50ms timeout
+  // Attempt connection to unroutable IP
+  try {
+    s.connect(5432, "10.255.255.1");
+  } catch (err) {
+    // Ignore connection errors
+  }
 
-    // Attempt connection to unroutable IP
-    try {
-      s.connect(5432, "10.255.255.1");
-    } catch (err) {
-      // Ignore connection errors
+  s.on("error", (err) => {
+    const elapsed = Date.now() - startTime;
+    forceLog(`❌ ERROR: Database connection failed after ${elapsed}ms`, true);
+    forceLog(
+      `   Error: ${err.code || "CONNECTION_REFUSED"} | Target: 10.255.255.1:5432 | Time: ${new Date().toISOString()}`,
+      true,
+    );
+    s.destroy();
+    dualLog("✅ Database error generated (ONE TIME ONLY)");
+  });
+
+  s.on("timeout", () => {
+    const elapsed = Date.now() - startTime;
+    forceLog(
+      `❌ ERROR: Database connection timed out after ${elapsed}ms`,
+      true,
+    );
+    forceLog(
+      `   Target: 10.255.255.1:5432 | Time: ${new Date().toISOString()}`,
+      true,
+    );
+    s.destroy();
+    dualLog("✅ Database error generated (ONE TIME ONLY)");
+  });
+
+  // Force destroy after 100ms regardless
+  setTimeout(() => {
+    if (!s.destroyed) {
+      s.destroy();
+      dualLog("✅ Database error generated (ONE TIME ONLY)");
     }
-
-    s.on("error", (err) => {
-      const elapsed = Date.now() - startTime;
-      forceLog(
-        `❌ ERROR: Database connection #${attemptId} failed after ${elapsed}ms`,
-        true,
-      );
-      forceLog(
-        `   Error: ${err.code || "CONNECTION_REFUSED"} | Target: 10.255.255.1:5432 | Time: ${new Date().toISOString()}`,
-        true,
-      );
-      s.destroy();
-    });
-
-    s.on("timeout", () => {
-      const elapsed = Date.now() - startTime;
-      forceLog(
-        `❌ ERROR: Database connection #${attemptId} timed out after ${elapsed}ms`,
-        true,
-      );
-      forceLog(
-        `   Target: 10.255.255.1:5432 | Time: ${new Date().toISOString()}`,
-        true,
-      );
-      s.destroy();
-    });
-
-    // Force destroy after 100ms regardless
-    setTimeout(() => {
-      if (!s.destroyed) {
-        s.destroy();
-      }
-    }, 100);
-  }, 500);
+  }, 100);
 }
 
 // ============================================================================
-// CHAOS MODE 4: TIMEOUT ERRORS (SAFE)
+// CHAOS MODE 4: TIMEOUT ERRORS (ONE-TIME)
 // ============================================================================
 
 function timeoutErrors() {
-  dualLog("⛔ TIMEOUT ERROR MODE ACTIVATED (SAFE)");
-  dualLog("   → Will simulate timeout errors every 2 seconds");
+  dualLog("⛔ TIMEOUT ERROR MODE ACTIVATED");
+  dualLog("   → Will generate ONE timeout error");
 
-  let timeoutCount = 0;
+  errorCount++;
 
-  setInterval(() => {
-    timeoutCount++;
-    errorCount++;
+  const timeoutDuration = Math.floor(Math.random() * 5000) + 3000; // 3-8 seconds
+  const endpoint = [
+    "/api/users",
+    "/api/orders",
+    "/api/products",
+    "/api/payments",
+  ][Math.floor(Math.random() * 4)];
 
-    const timeoutDuration = Math.floor(Math.random() * 5000) + 3000; // 3-8 seconds
-    const endpoint = [
-      "/api/users",
-      "/api/orders",
-      "/api/products",
-      "/api/payments",
-    ][Math.floor(Math.random() * 4)];
+  forceLog(`❌ ERROR: Request timeout - ${endpoint}`, true);
+  forceLog(
+    `   Timeout after: ${timeoutDuration}ms | Expected: 2000ms | Time: ${new Date().toISOString()}`,
+    true,
+  );
 
-    forceLog(`❌ ERROR: Request timeout #${timeoutCount} - ${endpoint}`, true);
-    forceLog(
-      `   Timeout after: ${timeoutDuration}ms | Expected: 2000ms | Time: ${new Date().toISOString()}`,
-      true,
-    );
-  }, 2000);
+  dualLog("✅ Timeout error generated (ONE TIME ONLY)");
 }
 
 // ============================================================================
-// CHAOS MODE 5: EXCEPTION STORM (SAFE - ALL CAUGHT)
+// CHAOS MODE 5: EXCEPTION STORM (ONE-TIME)
 // ============================================================================
 
 function exceptionStorm() {
-  dualLog("💥 EXCEPTION STORM MODE ACTIVATED (SAFE)");
-  dualLog("   → Will throw and catch random exceptions every 1-3 seconds");
+  dualLog("💥 EXCEPTION STORM MODE ACTIVATED");
+  dualLog("   → Will generate ONE exception error");
 
-  let crashCount = 0;
+  errorCount++;
 
-  function scheduleNextException() {
-    const delay = 1000 + Math.random() * 2000; // 1-3 seconds
+  const exceptionTypes = [
+    "TypeError: Cannot read property 'data' of undefined",
+    "ReferenceError: user is not defined",
+    "SyntaxError: Unexpected token in JSON at position 42",
+    "RangeError: Maximum call stack size exceeded",
+    "URIError: URI malformed",
+    "EvalError: Illegal eval invocation",
+    "Error: ENOENT: no such file or directory",
+    "Error: ECONNREFUSED: Connection refused",
+    "Error: ETIMEDOUT: Request timeout",
+    "Error: ENOTFOUND: DNS lookup failed",
+  ];
 
-    setTimeout(() => {
-      crashCount++;
-      errorCount++;
+  const exception =
+    exceptionTypes[Math.floor(Math.random() * exceptionTypes.length)];
 
-      const exceptionTypes = [
-        "TypeError: Cannot read property 'data' of undefined",
-        "ReferenceError: user is not defined",
-        "SyntaxError: Unexpected token in JSON at position 42",
-        "RangeError: Maximum call stack size exceeded",
-        "URIError: URI malformed",
-        "EvalError: Illegal eval invocation",
-        "Error: ENOENT: no such file or directory",
-        "Error: ECONNREFUSED: Connection refused",
-        "Error: ETIMEDOUT: Request timeout",
-        "Error: ENOTFOUND: DNS lookup failed",
-      ];
+  forceLog(`❌ ERROR: Exception - ${exception}`, true);
+  forceLog(
+    `   Stack: Error at processData (app.js:${Math.floor(Math.random() * 500)}) | Time: ${new Date().toISOString()}`,
+    true,
+  );
 
-      const exception =
-        exceptionTypes[Math.floor(Math.random() * exceptionTypes.length)];
-
-      forceLog(`❌ ERROR: Exception #${crashCount} - ${exception}`, true);
-      forceLog(
-        `   Stack: Error at processData (app.js:${Math.floor(Math.random() * 500)}) | Time: ${new Date().toISOString()}`,
-        true,
-      );
-
-      scheduleNextException();
-    }, delay);
-  }
-
-  scheduleNextException();
+  dualLog("✅ Exception error generated (ONE TIME ONLY)");
 }
 
 // ============================================================================
-// CHAOS MODE 6: FULL CHAOS (SAFE)
+// CHAOS MODE 6: FULL CHAOS (ONE-TIME FOR EACH TYPE)
 // ============================================================================
 
 function fullChaos() {
-  dualLog("🌪️  FULL CHAOS MODE ACTIVATED (SAFE)");
-  dualLog("   → ALL chaos modes running simultaneously!");
-  dualLog(
-    "   → Generates errors across CPU, memory, DB, timeouts, and exceptions",
-  );
+  dualLog("🌪️  FULL CHAOS MODE ACTIVATED");
+  dualLog("   → Generating ONE error of each type!");
+  dualLog("   → Errors across CPU, memory, DB, timeouts, and exceptions");
 
-  // Run all chaos modes at once
+  // Run all chaos modes at once (each generates one error)
   cpuErrors();
   memoryErrors();
   dbErrors();
   timeoutErrors();
   exceptionStorm();
 
-  dualLog("✅ Full chaos mode active - container will NOT crash!");
-  dualLog("   All errors are simulated or safely caught");
+  dualLog("✅ Full chaos mode complete - all errors generated (ONE TIME EACH)");
 }
 
 // ============================================================================
@@ -414,7 +374,7 @@ process.on("unhandledRejection", (reason, promise) => {
 // STARTUP COMPLETE
 // ============================================================================
 
-dualLog("✅ Chaos container initialized and ready (SAFE MODE)");
+dualLog("✅ Chaos container initialized and ready (ONE-TIME ERROR MODE)");
 dualLog("📝 Logging to both stdout and stderr for maximum visibility");
 dualLog("🔍 All errors will be prefixed with ❌ ERROR for easy filtering");
 dualLog("🛡️  Container will NOT crash or be killed - all errors are safe");

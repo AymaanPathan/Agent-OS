@@ -1,9 +1,13 @@
 import { EventEmitter } from "events";
-import { executeMCPTool } from "./mcpTools.registry";
-import { runAILogAnalysis } from "./aiAnalyzer.tool";
+import { runDockerListAll } from "./docker.tool";
+import { runHttpHealthCheck } from "./httpHealth.tool";
+import { exec } from "child_process";
+import { promisify } from "util";
+
+const execAsync = promisify(exec);
 
 // ====================================
-// 📡 ENHANCED CONTINUOUS MONITOR
+// 📡 CONTINUOUS MONITOR (FIXED)
 // ====================================
 
 export type MonitorConfig = {
@@ -13,7 +17,7 @@ export type MonitorConfig = {
   autoFix?: boolean;
   containerFilters?: string;
   apiEndpoints?: Array<{ url: string; expectedStatus: number }>;
-  runId?: string; // For socket emission
+  runId?: string;
 };
 
 export type ContainerMetric = {
@@ -32,7 +36,7 @@ export type ContainerMetric = {
     checkedUrl?: string;
   };
   issues?: string[];
-  logs?: string; // Real container logs
+  logs?: string;
 };
 
 export type MonitorState = {
@@ -48,6 +52,129 @@ export type MonitorState = {
   containerMetrics?: Map<string, ContainerMetric>;
   autoFixesApplied?: number;
 };
+
+/**
+ * Get container ports
+ */
+async function getContainerPorts(containerName: string): Promise<number[]> {
+  try {
+    const { stdout } = await execAsync(`docker inspect ${containerName}`);
+    const containers = JSON.parse(stdout);
+
+    if (!containers || containers.length === 0) {
+      return [];
+    }
+
+    const container = containers[0];
+    const ports: number[] = [];
+
+    if (container.NetworkSettings?.Ports) {
+      Object.entries(container.NetworkSettings.Ports).forEach(
+        ([, hostBindings]: [string, any]) => {
+          if (hostBindings && Array.isArray(hostBindings)) {
+            hostBindings.forEach((binding: any) => {
+              if (binding.HostPort) {
+                ports.push(parseInt(binding.HostPort));
+              }
+            });
+          }
+        },
+      );
+    }
+
+    return ports;
+  } catch (err) {
+    return [];
+  }
+}
+
+/**
+ * Check HTTP health for a container
+ */
+async function checkHTTPHealth(
+  containerName: string,
+  ports: number[],
+  timeout: number = 3000,
+): Promise<{
+  checked: boolean;
+  healthy: boolean;
+  statusCode?: number;
+  responseTime?: number;
+  checkedUrl?: string;
+}> {
+  if (ports.length === 0) {
+    return { checked: false, healthy: true }; // ✅ No ports = not an error
+  }
+
+  const axios = require("axios");
+  const healthPaths = ["/health", "/healthz", "/"];
+
+  for (const port of ports) {
+    for (const path of healthPaths) {
+      const url = `http://localhost:${port}${path}`;
+      const startTime = Date.now();
+
+      try {
+        const response = await axios.get(url, {
+          timeout,
+          validateStatus: () => true,
+        });
+
+        const responseTime = Date.now() - startTime;
+
+        // ✅ Check for explicit unhealthy status in body
+        let isHealthy = response.status >= 200 && response.status < 300;
+
+        if (isHealthy && typeof response.data === "object") {
+          const status = response.data.status || response.data.health;
+          if (status) {
+            const statusStr = String(status).toLowerCase();
+            if (
+              statusStr === "unhealthy" ||
+              statusStr === "down" ||
+              statusStr === "error" ||
+              response.data.ok === false
+            ) {
+              isHealthy = false;
+            }
+          }
+        }
+
+        return {
+          checked: true,
+          healthy: isHealthy,
+          statusCode: response.status,
+          responseTime,
+          checkedUrl: url,
+        };
+      } catch (err) {
+        continue;
+      }
+    }
+  }
+
+  return {
+    checked: true,
+    healthy: false,
+  };
+}
+
+/**
+ * Fetch container logs
+ */
+async function fetchContainerLogs(
+  containerName: string,
+  tail: number = 100,
+): Promise<string> {
+  try {
+    const { stdout, stderr } = await execAsync(
+      `docker logs --tail ${tail} ${containerName}`,
+    );
+    return stdout || stderr || "";
+  } catch (err: any) {
+    return `Failed to fetch logs: ${err.message}`;
+  }
+}
 
 export class ContinuousMonitor extends EventEmitter {
   private config: MonitorConfig;
@@ -73,15 +200,11 @@ export class ContinuousMonitor extends EventEmitter {
       throw new Error("Monitor already running");
     }
 
+    console.log("🟢 [Monitor] Starting continuous monitor");
+    console.log("🟢 [Monitor] Config:", this.config);
+
     this.state.isRunning = true;
     this.emit("started", { config: this.config });
-
-    console.log("🚀 [Monitor] Starting continuous monitor");
-    console.log(
-      "📊 [Monitor] Check interval:",
-      this.config.interval,
-      "seconds",
-    );
 
     // Run first check immediately
     await this.runCheck();
@@ -90,6 +213,10 @@ export class ContinuousMonitor extends EventEmitter {
     this.intervalId = setInterval(async () => {
       await this.runCheck();
     }, this.config.interval * 1000);
+
+    console.log(
+      `✅ [Monitor] Monitor started, checking every ${this.config.interval}s`,
+    );
   }
 
   stop() {
@@ -99,7 +226,8 @@ export class ContinuousMonitor extends EventEmitter {
     }
     this.state.isRunning = false;
     this.emit("stopped", { state: this.state });
-    console.log("🛑 [Monitor] Stopped");
+
+    console.log("🔴 [Monitor] Monitor stopped");
   }
 
   getState(): MonitorState {
@@ -110,14 +238,12 @@ export class ContinuousMonitor extends EventEmitter {
     this.state.checkCount++;
     this.state.lastCheck = new Date().toISOString();
 
-    console.log(
-      `\n🔍 [Monitor] Check #${this.state.checkCount} at ${this.state.lastCheck}`,
-    );
+    console.log(`\n📊 [Monitor] Check #${this.state.checkCount}`);
 
     try {
       switch (this.config.targets) {
         case "containers":
-          await this.checkContainersEnhanced();
+          await this.checkContainers();
           break;
         case "apis":
           await this.checkAPIs();
@@ -134,254 +260,144 @@ export class ContinuousMonitor extends EventEmitter {
     }
   }
 
-  private async checkContainersEnhanced() {
-    console.log("🐳 [Monitor] Checking containers via Health Scanner...");
+  private async checkContainers() {
+    console.log("🐳 [Monitor] Checking containers");
 
-    try {
-      // Step 1: Use Health Check Scanner to get container health
-      const scanResult = await executeMCPTool("tool.healthCheckScanner", {
-        scanAllRunning: true,
-        timeout: 5000,
-      });
+    const result = await runDockerListAll({
+      filters: this.config.containerFilters,
+      includeStats: true,
+      checkApplicationHealth: true, // ✅ Enable app health checks
+    });
 
-      console.log("🏥 [Monitor] Health scan result:", {
-        success: scanResult.success,
-        scannedCount: scanResult.scannedCount,
-        healthyCount: scanResult.healthyCount,
-        unhealthyCount: scanResult.unhealthyCount,
-      });
+    console.log(`📦 [Monitor] Found ${result.totalCount} containers`);
+    console.log(`✅ [Monitor] Healthy: ${result.healthyCount}`);
+    console.log(`❌ [Monitor] Unhealthy: ${result.unhealthyCount}`);
 
-      if (!scanResult.success || !scanResult.reports) {
-        throw new Error("Health check scanner failed");
+    // ✅ Build detailed metrics for each container
+    const containerMetrics: ContainerMetric[] = [];
+
+    for (const container of result.containers) {
+      const containerName = container.name;
+
+      console.log(`\n🔍 [Monitor] Processing: ${containerName}`);
+
+      // Get ports and HTTP health
+      const ports = await getContainerPorts(containerName);
+      const httpHealth = await checkHTTPHealth(containerName, ports);
+
+      // Fetch logs
+      const logs = await fetchContainerLogs(containerName, 100);
+
+      // Determine health status
+      const dockerHealthy = container.status === "running";
+      const applicationHealthy = httpHealth.healthy;
+
+      // Build issues list
+      const issues: string[] = [];
+      if (!dockerHealthy) {
+        issues.push(`Container not running (status: ${container.status})`);
       }
+      if (!applicationHealthy && httpHealth.checked) {
+        issues.push("Application health check failed");
 
-      const reports = scanResult.reports;
+        // Extract error patterns from logs
+        const errorLines = logs
+          .split("\n")
+          .filter(
+            (line) =>
+              line.toLowerCase().includes("error") ||
+              line.toLowerCase().includes("fail") ||
+              line.toLowerCase().includes("exception"),
+          )
+          .slice(0, 3);
 
-      // Step 2: Fetch logs for ALL containers via MCP
-      console.log(
-        `📝 [Monitor] Fetching logs for ${reports.length} containers...`,
-      );
-
-      const containerMetrics: ContainerMetric[] = await Promise.all(
-        reports.map(async (report: any) => {
-          try {
-            // Fetch logs via MCP
-            const logsResult = await executeMCPTool("tool.dockerLogs", {
-              containerName: report.containerName,
-              tail: 100,
-              timestamps: true,
-            });
-
-            console.log(`📋 [Monitor] Logs for ${report.containerName}:`, {
-              success: logsResult.success,
-              hasLogs: !!logsResult.logs,
-              logsLength: logsResult.logs?.length || 0,
-            });
-
-            // Determine severity based on health report
-            const severity: "HEALTHY" | "WARNING" | "CRITICAL" =
-              report.overallHealthy
-                ? "HEALTHY"
-                : report.applicationHealthy
-                  ? "WARNING"
-                  : "CRITICAL";
-
-            return {
-              containerName: report.containerName,
-              dockerHealthy: report.containerRunning,
-              applicationHealthy: report.applicationHealthy,
-              cpuPercent: "0%", // Health scanner doesn't provide CPU/Mem stats
-              memPercent: "0%",
-              severity,
-              timestamp: new Date().toISOString(),
-              httpHealthStatus: report.httpHealthStatus,
-              issues: report.issues,
-              logs: logsResult.logs || "No logs available",
-            };
-          } catch (err: any) {
-            console.error(
-              `❌ [Monitor] Failed to process ${report.containerName}:`,
-              err.message,
-            );
-            return {
-              containerName: report.containerName,
-              dockerHealthy: false,
-              applicationHealthy: false,
-              cpuPercent: "0%",
-              memPercent: "0%",
-              severity: "CRITICAL" as const,
-              timestamp: new Date().toISOString(),
-              issues: [`Failed to fetch data: ${err.message}`],
-              logs: "Failed to fetch logs",
-            };
-          }
-        }),
-      );
-
-      // Update state
-      containerMetrics.forEach((metric) => {
-        this.state.containerMetrics!.set(metric.containerName, metric);
-      });
-
-      console.log("✅ [Monitor] Processed all containers with logs");
-
-      // Detect changes and trigger alerts
-      if (this.previousState && this.config.alertOnChange) {
-        await this.detectChangesAndAlert(containerMetrics);
-      }
-
-      this.previousState = { containers: containerMetrics };
-
-      // Calculate counts
-      const healthyCount = containerMetrics.filter(
-        (m) => m.severity === "HEALTHY",
-      ).length;
-      const warningCount = containerMetrics.filter(
-        (m) => m.severity === "WARNING",
-      ).length;
-      const criticalCount = containerMetrics.filter(
-        (m) => m.severity === "CRITICAL",
-      ).length;
-
-      // Emit check completed event
-      this.emit("check_completed", {
-        type: "containers",
-        result: {
-          totalCount: containerMetrics.length,
-          runningCount: containerMetrics.filter((m) => m.dockerHealthy).length,
-          healthyCount,
-          unhealthyCount: scanResult.unhealthyCount,
-          containers: containerMetrics,
-        },
-        alerts: this.state.alerts.slice(-5),
-      });
-
-      // Auto-fix if enabled
-      if (this.config.autoFix) {
-        await this.autoFixUnhealthyContainers(containerMetrics);
-      }
-    } catch (err: any) {
-      console.error("❌ [Monitor] Container check failed:", err.message);
-      throw err;
-    }
-  }
-
-  private async detectChangesAndAlert(currentMetrics: ContainerMetric[]) {
-    const prev = this.previousState?.containers || [];
-    const prevMap = new Map(prev.map((c: any) => [c.containerName, c]));
-
-    for (const current of currentMetrics) {
-      const previous: any = prevMap.get(current.containerName);
-
-      if (!previous) {
-        // New container detected
-        this.addAlert(
-          "info",
-          `New container detected: ${current.containerName}`,
-          {
-            container: current.containerName,
-          },
-        );
-        continue;
-      }
-
-      // Became unhealthy
-      if (
-        previous.severity === "HEALTHY" &&
-        (current.severity === "WARNING" || current.severity === "CRITICAL")
-      ) {
-        this.addAlert(
-          current.severity === "CRITICAL" ? "critical" : "warning",
-          `Container became unhealthy: ${current.containerName}`,
-          {
-            container: current.containerName,
-            previousSeverity: previous.severity,
-            currentSeverity: current.severity,
-            issues: current.issues,
-          },
-        );
-      }
-
-      // Recovered
-      if (
-        (previous.severity === "WARNING" || previous.severity === "CRITICAL") &&
-        current.severity === "HEALTHY"
-      ) {
-        this.addAlert("info", `Container recovered: ${current.containerName}`, {
-          container: current.containerName,
-          previousSeverity: previous.severity,
-        });
-      }
-    }
-  }
-
-  private async autoFixUnhealthyContainers(metrics: ContainerMetric[]) {
-    const unhealthy = metrics.filter((m) => m.severity === "CRITICAL");
-
-    if (unhealthy.length === 0) return;
-
-    console.log(
-      `🤖 [Monitor] Auto-fix enabled, found ${unhealthy.length} critical containers`,
-    );
-
-    for (const metric of unhealthy) {
-      try {
-        // AI Analysis
-        const analysis = await runAILogAnalysis({
-          logs: metric.logs || "",
-          containerNames: [metric.containerName],
-          context: "Auto-fix analysis",
-        });
-
-        console.log(`🧠 [Monitor] AI Analysis for ${metric.containerName}:`, {
-          confidence: analysis.confidence,
-          errorCategory: analysis.errorCategory,
-        });
-
-        // Only auto-fix if high confidence
-        if (analysis.confidence === "high" && analysis.success) {
-          console.log(
-            `🔧 [Monitor] Attempting auto-fix for ${metric.containerName}`,
-          );
-
-          this.emit("auto_fix_attempted", {
-            alert: {
-              containerName: metric.containerName,
-              analysis,
-            },
-            result: { starting: true },
-          });
-
-          // Restart container
-          const restartResult = await executeMCPTool("tool.dockerRestart", {
-            containerName: metric.containerName,
-            timeout: 10,
-          });
-
-          if (restartResult.success) {
-            this.state.autoFixesApplied!++;
-            this.addAlert(
-              "info",
-              `Auto-fixed container: ${metric.containerName}`,
-              {
-                container: metric.containerName,
-                action: "restart",
-                analysis: analysis.summary,
-              },
-            );
-          }
-        } else {
-          console.log(
-            `⚠️ [Monitor] Skipping auto-fix for ${metric.containerName} (low confidence)`,
-          );
+        if (errorLines.length > 0) {
+          issues.push("Recent errors:");
+          errorLines.forEach((line) => issues.push(`  ${line.trim()}`));
         }
-      } catch (err: any) {
-        console.error(
-          `❌ [Monitor] Auto-fix failed for ${metric.containerName}:`,
-          err.message,
-        );
+      }
+
+      const cpuPercent = container.cpuPercent || "0%";
+      const memPercent = container.memPercent || "0%";
+
+      if (parseFloat(cpuPercent) > 80) {
+        issues.push(`High CPU usage: ${cpuPercent}`);
+      }
+      if (parseFloat(memPercent) > 80) {
+        issues.push(`High memory usage: ${memPercent}`);
+      }
+
+      // Determine severity
+      let severity: "HEALTHY" | "WARNING" | "CRITICAL" = "HEALTHY";
+      if (!dockerHealthy || !applicationHealthy) {
+        severity = "CRITICAL";
+      } else if (parseFloat(cpuPercent) > 80 || parseFloat(memPercent) > 80) {
+        severity = "WARNING";
+      }
+
+      const metric: ContainerMetric = {
+        containerName,
+        dockerHealthy,
+        applicationHealthy,
+        cpuPercent,
+        memPercent,
+        severity,
+        timestamp: new Date().toISOString(),
+        httpHealthStatus: httpHealth.checked ? httpHealth : undefined,
+        issues: issues.length > 0 ? issues : undefined,
+        logs,
+      };
+
+      containerMetrics.push(metric);
+      this.state.containerMetrics!.set(containerName, metric);
+
+      console.log(
+        `📊 [Monitor] ${containerName}: ${severity} (Docker: ${dockerHealthy}, App: ${applicationHealthy})`,
+      );
+    }
+
+    // Detect changes
+    if (this.previousState && this.config.alertOnChange) {
+      const prev = this.previousState as typeof result;
+
+      // New unhealthy containers
+      const newUnhealthy = (result.unhealthyContainers || []).filter(
+        (name: string) => !(prev.unhealthyContainers || []).includes(name),
+      );
+
+      if (newUnhealthy.length > 0) {
+        console.log("🚨 [Monitor] New unhealthy containers:", newUnhealthy);
+        this.addAlert("critical", "Containers became unhealthy", {
+          containers: newUnhealthy,
+          totalUnhealthy: result.unhealthyCount,
+        });
+      }
+
+      // Containers recovered
+      const recovered = (prev.unhealthyContainers || []).filter(
+        (name: string) => !(result.unhealthyContainers || []).includes(name),
+      );
+
+      if (recovered.length > 0) {
+        console.log("✅ [Monitor] Containers recovered:", recovered);
+        this.addAlert("info", "Containers recovered", {
+          containers: recovered,
+          totalHealthy: result.healthyCount,
+        });
       }
     }
+
+    this.previousState = result;
+
+    // ✅ Emit check_completed with full container data
+    this.emit("check_completed", {
+      type: "containers",
+      result: {
+        ...result,
+        containers: containerMetrics, // ✅ Send enriched metrics
+      },
+      alerts: this.state.alerts.slice(-5),
+    });
   }
 
   private async checkAPIs() {
@@ -391,32 +407,21 @@ export class ContinuousMonitor extends EventEmitter {
 
     const results = [];
     for (const endpoint of this.config.apiEndpoints) {
-      try {
-        const result = await executeMCPTool("tool.httpHealth", {
-          url: endpoint.url,
-          expectedStatus: endpoint.expectedStatus,
-          timeout: 5000,
-          retries: 1,
+      const result = await runHttpHealthCheck({
+        url: endpoint.url,
+        expectedStatus: endpoint.expectedStatus,
+        timeout: 5000,
+        retries: 1,
+      });
+
+      if (!result.pass) {
+        this.addAlert("critical", `API health check failed: ${endpoint.url}`, {
+          statusCode: result.statusCode,
+          error: result.error,
         });
-
-        if (!result.pass) {
-          this.addAlert(
-            "critical",
-            `API health check failed: ${endpoint.url}`,
-            {
-              statusCode: result.statusCode,
-              error: result.error,
-            },
-          );
-        }
-
-        results.push(result);
-      } catch (err: any) {
-        console.error(
-          `❌ [Monitor] API check failed for ${endpoint.url}:`,
-          err.message,
-        );
       }
+
+      results.push(result);
     }
 
     this.emit("check_completed", {
@@ -427,7 +432,6 @@ export class ContinuousMonitor extends EventEmitter {
   }
 
   private async checkResources() {
-    // Placeholder for system resource monitoring
     this.emit("check_completed", {
       type: "resources",
       message: "Resource monitoring not yet implemented",
@@ -453,8 +457,8 @@ export class ContinuousMonitor extends EventEmitter {
       this.state.alerts = this.state.alerts.slice(-100);
     }
 
+    console.log(`🚨 [Monitor] Alert (${severity}):`, message);
     this.emit("alert", alert);
-    console.log(`🚨 [Monitor] Alert (${severity}): ${message}`);
   }
 }
 
