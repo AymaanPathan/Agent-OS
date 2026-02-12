@@ -1,11 +1,27 @@
 FROM node:18-alpine
 
+# Add metadata
+LABEL maintainer="demo"
+LABEL description="Chaos container for error generation demos"
+
 WORKDIR /app
 
+# Copy package files
+COPY package.json .
 COPY chaos-container.js .
 
-RUN npm init -y && npm install express
+# Install dependencies
+RUN npm install --production
 
+# Install curl for health checks
+RUN apk add --no-cache curl
+
+# Expose health endpoint port
 EXPOSE 8080
 
+# Add health check
+HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
+  CMD curl -f http://localhost:8080/health || exit 1
+
+# Run the chaos container
 CMD ["node", "chaos-container.js"]

@@ -1,11 +1,25 @@
 {
-  "name": "error-simulator",
-  "version": "1.0.0",
+  "name": "chaos-container-demo",
+  "version": "2.0.0",
+  "description": "Demo-ready chaos container for continuous error generation",
   "main": "chaos-container.js",
   "scripts": {
-    "start": "node chaos-container.js"
+    "start": "node chaos-container.js",
+    "dev": "node chaos-container.js"
   },
+  "keywords": [
+    "chaos",
+    "demo",
+    "error-simulation",
+    "observability",
+    "monitoring"
+  ],
   "dependencies": {
     "express": "^4.18.2"
-  }
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "author": "",
+  "license": "MIT"
 }
