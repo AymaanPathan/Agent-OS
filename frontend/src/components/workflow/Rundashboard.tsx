@@ -1,5 +1,5 @@
-/* eslint-disable react-hooks/refs */
-/* eslint-disable react-hooks/immutability */
+/* eslint-disable react-hooks/rules-of-hooks */
+/* eslint-disable react-hooks/exhaustive-deps */
 /* eslint-disable @typescript-eslint/no-explicit-any */
 "use client";
 
@@ -194,10 +194,10 @@ const nodeTypeConfig: Record<
   },
   default: {
     icon: Box,
-    color: "text-zinc-400",
-    bg: "bg-zinc-500/5",
-    border: "border-zinc-500/20",
-    badge: "bg-zinc-500/20 text-zinc-300",
+    color: "text-[rgb(var(--foreground-muted))]",
+    bg: "surface",
+    border: "border-[rgb(var(--border))]",
+    badge: "surface text-[rgb(var(--foreground-muted))]",
     label: "Unknown",
   },
 };
@@ -216,9 +216,12 @@ function OutputViewer({ data }: { data: any }) {
   };
 
   const renderValue = (value: any, depth = 0): any => {
-    if (value === null) return <span className="text-zinc-600">null</span>;
+    if (value === null)
+      return <span className="text-[rgb(var(--foreground-subtle))]">null</span>;
     if (value === undefined)
-      return <span className="text-zinc-600">undefined</span>;
+      return (
+        <span className="text-[rgb(var(--foreground-subtle))]">undefined</span>
+      );
 
     if (typeof value === "boolean") {
       return (
@@ -239,7 +242,7 @@ function OutputViewer({ data }: { data: any }) {
             href={value}
             target="_blank"
             rel="noopener noreferrer"
-            className="text-blue-400 hover:text-blue-300 underline"
+            className="text-blue-400 hover:text-blue-300 underline transition-colors"
           >
             {value}
           </a>
@@ -259,13 +262,15 @@ function OutputViewer({ data }: { data: any }) {
 
     if (Array.isArray(value)) {
       if (value.length === 0) {
-        return <span className="text-zinc-600">[]</span>;
+        return <span className="text-[rgb(var(--foreground-subtle))]">[]</span>;
       }
       return (
         <div className="ml-3 space-y-1">
           {value.map((item, idx) => (
             <div key={idx} className="flex items-start gap-2">
-              <span className="text-zinc-600 text-xs">[{idx}]</span>
+              <span className="text-[rgb(var(--foreground-subtle))] text-xs">
+                [{idx}]
+              </span>
               <div className="flex-1">{renderValue(item, depth + 1)}</div>
             </div>
           ))}
@@ -276,14 +281,16 @@ function OutputViewer({ data }: { data: any }) {
     if (typeof value === "object") {
       const entries = Object.entries(value);
       if (entries.length === 0) {
-        return <span className="text-zinc-600">{"{}"}</span>;
+        return (
+          <span className="text-[rgb(var(--foreground-subtle))]">{"{}"}</span>
+        );
       }
 
       return (
         <div className="ml-3 space-y-1.5">
           {entries.map(([key, val]) => (
             <div key={key} className="flex items-start gap-2">
-              <span className="text-zinc-500 text-xs font-medium min-w-fit">
+              <span className="text-[rgb(var(--foreground-muted))] text-xs font-medium min-w-fit">
                 {key}:
               </span>
               <div className="flex-1">{renderValue(val, depth + 1)}</div>
@@ -293,19 +300,25 @@ function OutputViewer({ data }: { data: any }) {
       );
     }
 
-    return <span className="text-zinc-400">{String(value)}</span>;
+    return (
+      <span className="text-[rgb(var(--foreground-muted))]">
+        {String(value)}
+      </span>
+    );
   };
 
   return (
-    <div className="relative rounded-lg bg-black/40 border border-zinc-800 overflow-hidden">
-      <div className="flex items-center justify-between px-3 py-2 bg-zinc-900/50 border-b border-zinc-800">
+    <div className="relative rounded-lg surface-elevated border border-[rgb(var(--border))] overflow-hidden">
+      <div className="flex items-center justify-between px-3 py-2 surface border-b border-[rgb(var(--border))]">
         <div className="flex items-center gap-2">
-          <Database className="h-3.5 w-3.5 text-zinc-500" />
-          <span className="text-xs font-semibold text-zinc-400">Output</span>
+          <Database className="h-3.5 w-3.5 text-[rgb(var(--foreground-muted))]" />
+          <span className="text-xs font-semibold text-[rgb(var(--foreground))]">
+            Output
+          </span>
         </div>
         <button
           onClick={handleCopy}
-          className="flex items-center gap-1.5 px-2 py-1 rounded-md hover:bg-zinc-800 transition-colors text-xs text-zinc-500 hover:text-zinc-300"
+          className="flex items-center gap-1.5 px-2 py-1 rounded-md hover:surface transition-colors text-xs text-[rgb(var(--foreground-muted))] hover:text-[rgb(var(--foreground))]"
         >
           <Copy className="h-3 w-3" />
           {copied ? "Copied!" : "Copy"}
@@ -323,7 +336,7 @@ function OutputViewer({ data }: { data: any }) {
 // ====================================
 
 function NodeExecutionCard({
-  node,
+  node = {} as NodeExecutionLog,
   index,
 }: {
   node: NodeExecutionLog;
@@ -331,12 +344,22 @@ function NodeExecutionCard({
 }) {
   const [expanded, setExpanded] = useState(true);
 
-  const config = nodeTypeConfig[node.nodeType] || nodeTypeConfig.default;
-  const Icon = config.icon;
+  // Get config with proper fallback
+  const config = nodeTypeConfig[node?.nodeType] ||
+    nodeTypeConfig.default || {
+      icon: Box,
+      color: "text-[rgb(var(--foreground-muted))]",
+      bg: "surface",
+      border: "border-[rgb(var(--border))]",
+      badge: "surface text-[rgb(var(--foreground-muted))]",
+      label: "Unknown",
+    };
 
-  const hasOutput = node.output && Object.keys(node.output).length > 0;
-  const hasConfig = node.config && Object.keys(node.config).length > 0;
-  const hasDetails = hasOutput || hasConfig || node.error;
+  const Icon = config?.icon || Box;
+
+  const hasOutput = node?.output && Object.keys(node?.output).length > 0;
+  const hasConfig = node?.config && Object.keys(node?.config)?.length > 0;
+  const hasDetails = hasOutput || hasConfig || node?.error;
 
   const statusConfig: Record<
     string,
@@ -350,8 +373,8 @@ function NodeExecutionCard({
   > = {
     pending: {
       icon: Clock,
-      color: "text-zinc-500",
-      bg: "bg-zinc-500/10",
+      color: "text-[rgb(var(--foreground-muted))]",
+      bg: "surface",
       label: "Pending",
     },
     running: {
@@ -381,8 +404,8 @@ function NodeExecutionCard({
     },
   };
 
-  const status = statusConfig[node.status];
-  const StatusIcon = status.icon;
+  const status = statusConfig[node?.status] || statusConfig.pending;
+  const StatusIcon = status?.icon || Clock;
 
   return (
     <motion.div
@@ -393,33 +416,33 @@ function NodeExecutionCard({
     >
       {/* Connector Line */}
       {index > 0 && (
-        <div className="absolute left-8 -top-4 w-0.5 h-4 bg-gradient-to-b from-zinc-700 to-transparent" />
+        <div className="absolute left-8 -top-4 w-0.5 h-4 bg-gradient-to-b from-[rgb(var(--border))] to-transparent" />
       )}
 
       <div
-        className={`rounded-xl border-2 ${config.border} ${config.bg} overflow-hidden`}
+        className={`rounded-xl border-2 ${config?.border} ${config?.bg} overflow-hidden transition-all hover:shadow-sm`}
       >
         {/* Card Header */}
         <div
-          className={`p-4 cursor-pointer transition-colors ${hasDetails ? "hover:bg-white/[0.02]" : ""}`}
+          className={`p-4 cursor-pointer transition-colors ${hasDetails ? "hover:surface" : ""}`}
           onClick={() => hasDetails && setExpanded(!expanded)}
         >
           <div className="flex items-start gap-4">
             {/* Step Number & Connector */}
             <div className="flex flex-col items-center gap-2">
-              <div className="flex-shrink-0 w-10 h-10 rounded-xl bg-zinc-900 border-2 border-zinc-800 flex items-center justify-center">
-                <span className="text-sm font-bold text-zinc-400">
-                  {node.stepIndex}
+              <div className="flex-shrink-0 w-10 h-10 rounded-xl surface-elevated border-2 border-[rgb(var(--border))] flex items-center justify-center">
+                <span className="text-sm font-bold text-[rgb(var(--foreground))]">
+                  {node?.stepIndex}
                 </span>
               </div>
-              {index < 10 && ( // Assuming max 10 steps visible
-                <div className="w-0.5 h-6 bg-zinc-800" />
+              {index < 10 && (
+                <div className="w-0.5 h-6 bg-[rgb(var(--border))]" />
               )}
             </div>
 
             {/* Node Icon */}
-            <div className={`flex-shrink-0 p-3 rounded-xl ${config.badge}`}>
-              <Icon className={`h-5 w-5 ${config.color}`} />
+            <div className={`flex-shrink-0 p-3 rounded-xl ${config?.badge}`}>
+              <Icon className={`h-5 w-5 ${config?.color}`} />
             </div>
 
             {/* Node Content */}
@@ -427,31 +450,31 @@ function NodeExecutionCard({
               <div className="flex items-start justify-between gap-3 mb-2">
                 <div>
                   <div className="flex items-center gap-2 mb-1">
-                    <h3 className={`font-semibold text-base ${config.color}`}>
-                      {node.label}
+                    <h3 className={`font-semibold text-base ${config?.color}`}>
+                      {node?.label}
                     </h3>
                     <span
-                      className={`text-xs px-2 py-0.5 rounded-md ${config.badge} font-medium`}
+                      className={`text-xs px-2 py-0.5 rounded-md ${config?.badge} font-medium`}
                     >
-                      {config.label}
+                      {config?.label}
                     </span>
                   </div>
 
-                  <div className="flex items-center gap-3 text-xs text-zinc-500">
+                  <div className="flex items-center gap-3 text-xs text-[rgb(var(--foreground-muted))]">
                     <span className="font-mono">
-                      {node.startTime
-                        ? new Date(node.startTime).toLocaleTimeString()
+                      {node?.startTime
+                        ? new Date(node?.startTime).toLocaleTimeString()
                         : "Not started"}
                     </span>
-                    {node.duration !== undefined && (
+                    {node?.duration !== undefined && (
                       <>
                         <span>•</span>
                         <span
                           className={
-                            node.duration > 5000 ? "text-yellow-400" : ""
+                            node?.duration > 5000 ? "text-yellow-400" : ""
                           }
                         >
-                          {node.duration}ms
+                          {node?.duration}ms
                         </span>
                       </>
                     )}
@@ -483,10 +506,10 @@ function NodeExecutionCard({
               </div>
 
               {/* Node ID Badge */}
-              <div className="inline-flex items-center gap-1.5 px-2 py-1 rounded-md bg-zinc-900/50 border border-zinc-800">
-                <Box className="h-3 w-3 text-zinc-600" />
-                <span className="text-[10px] font-mono text-zinc-500">
-                  {node.nodeId}
+              <div className="inline-flex items-center gap-1.5 px-2 py-1 rounded-md surface border border-[rgb(var(--border))]">
+                <Box className="h-3 w-3 text-[rgb(var(--foreground-subtle))]" />
+                <span className="text-[10px] font-mono text-[rgb(var(--foreground-muted))]">
+                  {node?.nodeId}
                 </span>
               </div>
             </div>
@@ -498,7 +521,7 @@ function NodeExecutionCard({
                 transition={{ duration: 0.2 }}
                 className="flex-shrink-0"
               >
-                <ChevronDown className="h-5 w-5 text-zinc-600" />
+                <ChevronDown className="h-5 w-5 text-[rgb(var(--foreground-subtle))]" />
               </motion.div>
             )}
           </div>
@@ -512,11 +535,11 @@ function NodeExecutionCard({
               animate={{ height: "auto", opacity: 1 }}
               exit={{ height: 0, opacity: 0 }}
               transition={{ duration: 0.2 }}
-              className="border-t border-zinc-800 overflow-hidden"
+              className="border-t border-[rgb(var(--border))] overflow-hidden"
             >
               <div className="p-4 space-y-4">
                 {/* Error Display */}
-                {node.error && (
+                {node?.error && (
                   <div className="rounded-lg bg-red-500/5 border border-red-500/20 p-3">
                     <div className="flex items-start gap-2">
                       <XCircle className="h-4 w-4 text-red-400 flex-shrink-0 mt-0.5" />
@@ -525,7 +548,7 @@ function NodeExecutionCard({
                           Error
                         </div>
                         <div className="text-xs text-red-300 font-mono">
-                          {node.error}
+                          {node?.error}
                         </div>
                       </div>
                     </div>
@@ -535,22 +558,22 @@ function NodeExecutionCard({
                 {/* Configuration */}
                 {hasConfig && (
                   <div>
-                    <div className="text-xs font-semibold text-zinc-400 mb-2 flex items-center gap-2">
+                    <div className="text-xs font-semibold text-[rgb(var(--foreground))] mb-2 flex items-center gap-2">
                       <Code className="h-3.5 w-3.5" />
                       Configuration
                     </div>
-                    <OutputViewer data={node.config} />
+                    <OutputViewer data={node?.config} />
                   </div>
                 )}
 
                 {/* Output */}
                 {hasOutput && (
                   <div>
-                    <div className="text-xs font-semibold text-zinc-400 mb-2 flex items-center gap-2">
+                    <div className="text-xs font-semibold text-[rgb(var(--foreground))] mb-2 flex items-center gap-2">
                       <Database className="h-3.5 w-3.5" />
                       Execution Output
                     </div>
-                    <OutputViewer data={node.output} />
+                    <OutputViewer data={node?.output} />
                   </div>
                 )}
               </div>
@@ -560,13 +583,13 @@ function NodeExecutionCard({
       </div>
 
       {/* Arrow to Next Step */}
-      {node.status === "success" && index < 10 && (
+      {node?.status === "success" && index < 10 && (
         <motion.div
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           className="flex justify-center my-2"
         >
-          <ArrowRight className="h-4 w-4 text-zinc-700" />
+          <ArrowRight className="h-4 w-4 text-[rgb(var(--border))]" />
         </motion.div>
       )}
     </motion.div>
@@ -578,7 +601,7 @@ function NodeExecutionCard({
 // ====================================
 
 export default function RunDashboard({
-  runId,
+  runId = "",
   onClose,
 }: {
   runId: string;
@@ -626,14 +649,14 @@ export default function RunDashboard({
     socket.on("node_started", (data) => {
       setNodeExecutions((prev) => {
         const newMap = new Map(prev);
-        newMap.set(data.nodeId, {
-          nodeId: data.nodeId,
-          nodeType: data.nodeType,
-          label: data.label,
-          stepIndex: data.stepIndex,
+        newMap.set(data?.nodeId, {
+          nodeId: data?.nodeId,
+          nodeType: data?.nodeType,
+          label: data?.label,
+          stepIndex: data?.stepIndex,
           status: "running",
-          startTime: data.timestamp,
-          config: data.config,
+          startTime: data?.timestamp,
+          config: data?.config,
         });
         return newMap;
       });
@@ -642,13 +665,13 @@ export default function RunDashboard({
     socket.on("node_completed", (data) => {
       setNodeExecutions((prev) => {
         const newMap = new Map(prev);
-        const existing = newMap.get(data.nodeId) || ({} as NodeExecutionLog);
-        newMap.set(data.nodeId, {
+        const existing = newMap.get(data?.nodeId) || ({} as NodeExecutionLog);
+        newMap.set(data?.nodeId, {
           ...existing,
           status: "success",
-          endTime: data.timestamp,
-          duration: data.duration,
-          output: data.output,
+          endTime: data?.timestamp,
+          duration: data?.duration,
+          output: data?.output,
         });
         return newMap;
       });
@@ -658,12 +681,12 @@ export default function RunDashboard({
     socket.on("node_failed", (data) => {
       setNodeExecutions((prev) => {
         const newMap = new Map(prev);
-        const existing = newMap.get(data.nodeId) || ({} as NodeExecutionLog);
-        newMap.set(data.nodeId, {
+        const existing = newMap.get(data?.nodeId) || ({} as NodeExecutionLog);
+        newMap.set(data?.nodeId, {
           ...existing,
           status: "failed",
-          endTime: data.timestamp,
-          error: data.message,
+          endTime: data?.timestamp,
+          error: data?.message,
         });
         return newMap;
       });
@@ -673,8 +696,8 @@ export default function RunDashboard({
       setPendingApproval(data);
       setNodeExecutions((prev) => {
         const newMap = new Map(prev);
-        const existing = newMap.get(data.nodeId) || ({} as NodeExecutionLog);
-        newMap.set(data.nodeId, {
+        const existing = newMap.get(data?.nodeId) || ({} as NodeExecutionLog);
+        newMap.set(data?.nodeId, {
           ...existing,
           status: "paused",
         });
@@ -686,10 +709,10 @@ export default function RunDashboard({
       setPendingApproval(null);
       setNodeExecutions((prev) => {
         const newMap = new Map(prev);
-        const existing = newMap.get(data.nodeId) || ({} as NodeExecutionLog);
-        newMap.set(data.nodeId, {
+        const existing = newMap.get(data?.nodeId) || ({} as NodeExecutionLog);
+        newMap.set(data?.nodeId, {
           ...existing,
-          status: data.approved ? "success" : "failed",
+          status: data?.approved ? "success" : "failed",
         });
         return newMap;
       });
@@ -731,19 +754,21 @@ export default function RunDashboard({
   };
 
   const progress =
-    stats.totalNodes > 0 ? (stats.completedNodes / stats.totalNodes) * 100 : 0;
+    stats?.totalNodes > 0
+      ? (stats?.completedNodes / stats?.totalNodes) * 100
+      : 0;
 
   const sortedNodes = Array.from(nodeExecutions.values()).sort(
     (a, b) => a.stepIndex - b.stepIndex,
   );
 
   return (
-    <div className="h-full w-full flex flex-col bg-zinc-950 text-zinc-100">
+    <div className="h-full w-full flex flex-col bg-[rgb(var(--background))]">
       {/* HEADER */}
       <motion.div
         initial={{ y: -20, opacity: 0 }}
         animate={{ y: 0, opacity: 1 }}
-        className="border-b border-zinc-800 bg-zinc-900/80 backdrop-blur-xl px-6 py-4"
+        className="border-b border-[rgb(var(--border))] surface-elevated px-6 py-4"
       >
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-4">
@@ -751,9 +776,9 @@ export default function RunDashboard({
               whileHover={{ x: -2 }}
               whileTap={{ scale: 0.98 }}
               onClick={onClose}
-              className="p-2 rounded-lg hover:bg-zinc-800 transition-colors"
+              className="p-2 rounded-lg hover:surface transition-colors"
             >
-              <ChevronLeft className="h-5 w-5 text-zinc-400" />
+              <ChevronLeft className="h-5 w-5 text-[rgb(var(--foreground-muted))]" />
             </motion.button>
 
             <div className="flex items-center gap-3">
@@ -773,12 +798,12 @@ export default function RunDashboard({
               )}
 
               <div>
-                <div className="text-base font-bold text-white">
+                <div className="text-base font-bold text-[rgb(var(--foreground))]">
                   Workflow Execution
                 </div>
-                <div className="text-xs text-zinc-500 mt-0.5">
-                  Run {runId.slice(0, 8)} • {stats.completedNodes}/
-                  {stats.totalNodes} steps
+                <div className="text-xs text-[rgb(var(--foreground-muted))] mt-0.5">
+                  Run {runId.slice(0, 8)} • {stats?.completedNodes}/
+                  {stats?.totalNodes} steps
                 </div>
               </div>
             </div>
@@ -790,7 +815,7 @@ export default function RunDashboard({
               className={`px-3 py-2 rounded-lg text-xs font-medium transition-all ${
                 autoScroll
                   ? "bg-green-500/20 text-green-400 border border-green-500/30"
-                  : "bg-zinc-800 text-zinc-400 border border-zinc-700"
+                  : "surface text-[rgb(var(--foreground-muted))] border border-[rgb(var(--border))]"
               }`}
             >
               Auto-scroll {autoScroll ? "ON" : "OFF"}
@@ -798,12 +823,13 @@ export default function RunDashboard({
 
             <button
               onClick={downloadLogs}
-              className="px-3 py-2 rounded-lg bg-zinc-800 hover:bg-zinc-700 border border-zinc-700 text-xs font-medium text-zinc-300 transition-colors"
+              className="p-2 rounded-lg surface hover:surface-elevated border border-[rgb(var(--border))] text-[rgb(var(--foreground-muted))] hover:text-[rgb(var(--foreground))] transition-colors"
+              title="Download logs"
             >
               <Download className="h-4 w-4" />
             </button>
 
-            <div className="h-2 w-48 bg-zinc-800 rounded-full overflow-hidden">
+            <div className="h-2 w-48 surface rounded-full overflow-hidden border border-[rgb(var(--border))]">
               <motion.div
                 className="h-full bg-gradient-to-r from-blue-500 to-purple-500"
                 animate={{ width: `${progress}%` }}
@@ -831,7 +857,7 @@ export default function RunDashboard({
                     Approval Required
                   </div>
                   <div className="text-xs text-orange-300/80 mt-0.5">
-                    {pendingApproval.message}
+                    {pendingApproval?.message}
                   </div>
                 </div>
               </div>
@@ -839,13 +865,13 @@ export default function RunDashboard({
               <div className="flex gap-2">
                 <button
                   onClick={() => handleApproval(false)}
-                  className="px-4 py-2 rounded-lg bg-red-600/20 hover:bg-red-600/30 border border-red-500/30 text-xs font-medium text-red-200"
+                  className="px-4 py-2 rounded-lg bg-red-600/20 hover:bg-red-600/30 border border-red-500/30 text-xs font-medium text-red-200 transition-colors"
                 >
                   Reject
                 </button>
                 <button
                   onClick={() => handleApproval(true)}
-                  className="px-4 py-2 rounded-lg bg-green-600/20 hover:bg-green-600/30 border border-green-500/30 text-xs font-medium text-green-200"
+                  className="px-4 py-2 rounded-lg bg-green-600/20 hover:bg-green-600/30 border border-green-500/30 text-xs font-medium text-green-200 transition-colors"
                 >
                   Approve
                 </button>
@@ -863,11 +889,13 @@ export default function RunDashboard({
             animate={{ opacity: 1 }}
             className="flex flex-col items-center justify-center h-full"
           >
-            <Terminal className="h-16 w-16 text-zinc-700 mb-4" />
-            <h3 className="text-xl font-bold text-white mb-2">
+            <div className="inline-flex items-center justify-center w-20 h-20 rounded-2xl surface-elevated border border-[rgb(var(--border))] mb-6">
+              <Terminal className="h-10 w-10 text-[rgb(var(--primary))]" />
+            </div>
+            <h3 className="text-xl font-bold text-[rgb(var(--foreground))] mb-2">
               Waiting for execution...
             </h3>
-            <p className="text-sm text-zinc-500">
+            <p className="text-sm text-[rgb(var(--foreground-muted))]">
               Workflow steps will appear here as they execute
             </p>
           </motion.div>
