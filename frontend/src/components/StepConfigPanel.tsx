@@ -20,6 +20,7 @@ import {
   GitBranch,
   Plus,
   ChevronRight,
+  ChevronDown,
 } from "lucide-react";
 import {
   Popover,
@@ -112,33 +113,35 @@ export default function StepConfigPanel({
       animate={{ x: 0 }}
       exit={{ x: 440 }}
       transition={{ type: "spring", stiffness: 300, damping: 30 }}
-      className="fixed right-0 top-14 z-50 h-[calc(100vh-56px)] w-[440px] border-l border-gray-800 bg-[#111113] shadow-2xl flex flex-col"
+      className="fixed right-0 top-14 z-50 h-[calc(100vh-56px)] w-[440px] border-l border-[rgb(var(--sidebar-border))] bg-[rgb(var(--sidebar))] shadow-2xl flex flex-col"
     >
       {/* Header */}
-      <div className="flex items-center justify-between border-b border-gray-800 bg-gradient-to-r from-[#1a1a1d] to-[#111113] px-6 py-4">
+      <div className="flex items-center justify-between border-b border-[rgb(var(--border))] surface-elevated px-6 py-4">
         <div className="flex items-center gap-3">
-          <div className="rounded-lg bg-gradient-to-br from-blue-600 to-blue-700 p-2.5 shadow-lg shadow-blue-900/30">
-            <Settings className="h-4 w-4 text-white" />
+          <div className="rounded-lg bg-[rgb(var(--primary))] p-2.5 shadow-lg shadow-[rgb(var(--primary))]/20">
+            <Settings className="h-4 w-4 text-[rgb(var(--primary-foreground))]" />
           </div>
           <div>
-            <div className="text-sm font-semibold text-gray-100">
+            <div className="text-sm font-semibold text-[rgb(var(--foreground))]">
               {schema.title}
             </div>
-            <div className="text-xs text-gray-400">{step.data.label}</div>
+            <div className="text-xs text-[rgb(var(--foreground-muted))]">
+              {step.data.label}
+            </div>
           </div>
         </div>
 
         <div className="flex items-center gap-2">
           <button
             onClick={() => onDelete(step.id)}
-            className="rounded-lg p-2 hover:bg-red-500/20 text-gray-400 hover:text-red-400 transition"
+            className="rounded-lg p-2 hover:bg-[rgb(var(--error))]/20 text-[rgb(var(--foreground-muted))] hover:text-[rgb(var(--error))] transition"
             title="Delete step"
           >
             <Trash2 className="h-4 w-4" />
           </button>
           <button
             onClick={onClose}
-            className="rounded-lg p-2 hover:bg-gray-800 transition text-gray-400 hover:text-gray-200"
+            className="rounded-lg p-2 hover:surface transition text-[rgb(var(--foreground-muted))] hover:text-[rgb(var(--foreground))]"
           >
             <X className="h-4 w-4" />
           </button>
@@ -161,31 +164,30 @@ export default function StepConfigPanel({
             <div key={field.key} className="space-y-2.5">
               {/* Label + Variable Inserter */}
               <div className="flex items-center justify-between">
-                <label className="block text-sm font-medium text-gray-300">
+                <label className="block text-sm font-medium text-[rgb(var(--foreground))]">
                   {field.label}
                 </label>
 
                 {showVariableInserter && previousSteps.length > 0 && (
                   <Popover>
                     <PopoverTrigger asChild>
-                      <button className="flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-lg bg-blue-950 text-blue-400 hover:bg-blue-900 transition font-medium border border-blue-900">
+                      <button className="flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-lg bg-[rgb(var(--primary))]/10 text-[rgb(var(--primary))] hover:bg-[rgb(var(--primary))]/20 transition font-medium border border-[rgb(var(--primary))]/30">
                         <Sparkles className="h-3.5 w-3.5" />
                         Variables
                       </button>
                     </PopoverTrigger>
-
                     <PopoverContent
-                      className="w-96 p-0 bg-[#1a1a1d] border-gray-800"
+                      className="w-96 p-0 bg-[rgb(var(--surface-elevated))] border-[rgb(var(--border))]"
                       align="end"
                     >
-                      <div className="p-4 border-b border-gray-800 bg-[#111113]">
+                      <div className="p-4 border-b border-[rgb(var(--border))] surface">
                         <div className="flex items-center gap-2">
-                          <Code className="h-4 w-4 text-blue-400" />
-                          <div className="text-sm font-semibold text-gray-100">
+                          <Code className="h-4 w-4 text-[rgb(var(--primary))]" />
+                          <div className="text-sm font-semibold text-[rgb(var(--foreground))]">
                             Insert Dynamic Variable
                           </div>
                         </div>
-                        <div className="text-xs text-gray-400 mt-1">
+                        <div className="text-xs text-[rgb(var(--foreground-muted))] mt-1">
                           Reference data from previous steps
                         </div>
                       </div>
@@ -199,12 +201,12 @@ export default function StepConfigPanel({
                             return (
                               <div
                                 key={s.id}
-                                className="px-3 py-2 rounded-lg bg-gray-900 border border-gray-800"
+                                className="px-3 py-2 rounded-lg surface border border-[rgb(var(--border))]"
                               >
-                                <div className="text-xs font-medium text-gray-400">
+                                <div className="text-xs font-medium text-[rgb(var(--foreground-muted))]">
                                   {s.data?.label || s.id}
                                 </div>
-                                <div className="text-[11px] text-gray-500 mt-0.5">
+                                <div className="text-[11px] text-[rgb(var(--foreground-subtle))] mt-0.5">
                                   No outputs available
                                 </div>
                               </div>
@@ -214,13 +216,13 @@ export default function StepConfigPanel({
                           return (
                             <div
                               key={s.id}
-                              className="border border-gray-800 rounded-lg overflow-hidden bg-[#1a1a1d]"
+                              className="border border-[rgb(var(--border))] rounded-lg overflow-hidden surface-elevated"
                             >
-                              <div className="px-3 py-2 bg-gray-900 border-b border-gray-800">
-                                <div className="text-xs font-medium text-gray-200">
+                              <div className="px-3 py-2 surface border-b border-[rgb(var(--border))]">
+                                <div className="text-xs font-medium text-[rgb(var(--foreground))]">
                                   {s.data?.label || s.id}
                                 </div>
-                                <div className="text-[10px] text-gray-500">
+                                <div className="text-[10px] text-[rgb(var(--foreground-subtle))]">
                                   {nodeType}
                                 </div>
                               </div>
@@ -255,8 +257,8 @@ export default function StepConfigPanel({
 
               {/* Helper Text */}
               {field.helperText && (
-                <div className="text-xs text-gray-500 flex items-start gap-1.5">
-                  <Sparkles className="h-3 w-3 mt-0.5 flex-shrink-0 text-blue-400" />
+                <div className="text-xs text-[rgb(var(--foreground-muted))] flex items-start gap-1.5">
+                  <Sparkles className="h-3 w-3 mt-0.5 flex-shrink-0 text-[rgb(var(--primary))]" />
                   <span>{field.helperText}</span>
                 </div>
               )}
@@ -264,7 +266,7 @@ export default function StepConfigPanel({
               {/* Field Input */}
               {field.type === "text" && (
                 <input
-                  className="w-full rounded-lg border border-gray-700 bg-gray-900 px-4 py-2.5 text-sm text-gray-200 placeholder:text-gray-500 focus:border-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-900/30 transition font-mono"
+                  className="w-full rounded-lg border border-[rgb(var(--border))] surface-elevated px-4 py-2.5 text-sm text-[rgb(var(--foreground))] placeholder:text-[rgb(var(--foreground-subtle))] focus:border-[rgb(var(--primary))] focus:outline-none focus:ring-2 focus:ring-[rgb(var(--primary))]/30 transition font-mono"
                   value={value}
                   placeholder={field.placeholder}
                   onChange={(e) => update(field.key, e.target.value)}
@@ -273,7 +275,7 @@ export default function StepConfigPanel({
 
               {field.type === "textarea" && (
                 <textarea
-                  className="w-full resize-none rounded-lg border border-gray-700 bg-gray-900 px-4 py-2.5 text-sm text-gray-200 placeholder:text-gray-500 focus:border-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-900/30 transition font-mono"
+                  className="w-full resize-none rounded-lg border border-[rgb(var(--border))] surface-elevated px-4 py-2.5 text-sm text-[rgb(var(--foreground))] placeholder:text-[rgb(var(--foreground-subtle))] focus:border-[rgb(var(--primary))] focus:outline-none focus:ring-2 focus:ring-[rgb(var(--primary))]/30 transition font-mono"
                   rows={4}
                   value={value}
                   placeholder={field.placeholder}
@@ -284,7 +286,7 @@ export default function StepConfigPanel({
               {field.type === "number" && (
                 <input
                   type="number"
-                  className="w-full rounded-lg border border-gray-700 bg-gray-900 px-4 py-2.5 text-sm text-gray-200 placeholder:text-gray-500 focus:border-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-900/30 transition"
+                  className="w-full rounded-lg border border-[rgb(var(--border))] surface-elevated px-4 py-2.5 text-sm text-[rgb(var(--foreground))] placeholder:text-[rgb(var(--foreground-subtle))] focus:border-[rgb(var(--primary))] focus:outline-none focus:ring-2 focus:ring-[rgb(var(--primary))]/30 transition"
                   value={value}
                   placeholder={field.placeholder}
                   onChange={(e) => update(field.key, Number(e.target.value))}
@@ -293,18 +295,18 @@ export default function StepConfigPanel({
 
               {field.type === "select" && (
                 <select
-                  className="w-full rounded-lg border border-gray-700 bg-gray-900 px-4 py-2.5 text-sm text-gray-200 focus:border-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-900/30 transition"
+                  className="w-full rounded-lg border border-[rgb(var(--border))] surface-elevated px-4 py-2.5 text-sm text-[rgb(var(--foreground))] focus:border-[rgb(var(--primary))] focus:outline-none focus:ring-2 focus:ring-[rgb(var(--primary))]/30 transition"
                   value={value}
                   onChange={(e) => update(field.key, e.target.value)}
                 >
-                  <option value="" className="bg-gray-900">
+                  <option value="" className="surface-elevated">
                     Select an option
                   </option>
                   {field.options?.map((opt: any) => (
                     <option
                       key={opt.value}
                       value={opt.value}
-                      className="bg-gray-900"
+                      className="surface-elevated"
                     >
                       {opt.label}
                     </option>
@@ -317,7 +319,9 @@ export default function StepConfigPanel({
                   <button
                     onClick={() => update(field.key, !value)}
                     className={`relative inline-flex h-8 w-14 items-center rounded-full transition-colors ${
-                      value ? "bg-blue-600" : "bg-gray-700"
+                      value
+                        ? "bg-[rgb(var(--primary))]"
+                        : "bg-[rgb(var(--border))]"
                     }`}
                   >
                     <span
@@ -327,7 +331,7 @@ export default function StepConfigPanel({
                     />
                   </button>
 
-                  <span className="text-sm text-gray-400">
+                  <span className="text-sm text-[rgb(var(--foreground-muted))]">
                     {value ? "Enabled" : "Disabled"}
                   </span>
                 </div>
@@ -337,22 +341,25 @@ export default function StepConfigPanel({
         })}
 
         {/* Fallback Routing Section */}
+        {/* Fallback Routing Section */}
         {supportsFallbacks && availableRoutes.length > 0 && (
-          <div className="border-t border-gray-800 pt-5 mt-6">
+          <div className="border-t border-[rgb(var(--border))] pt-5 mt-6">
             <div className="flex items-center justify-between mb-3">
               <div className="flex items-center gap-2">
-                <GitBranch className="h-4 w-4 text-purple-400" />
-                <div className="text-sm font-semibold text-gray-100">
+                <div className="h-7 w-7 rounded-lg bg-[rgb(var(--primary))]/10 border border-[rgb(var(--primary))]/20 flex items-center justify-center">
+                  <GitBranch className="h-3.5 w-3.5 text-[rgb(var(--primary))]" />
+                </div>
+                <div className="text-sm font-semibold text-[rgb(var(--foreground))]">
                   Fallback Routes
                 </div>
               </div>
-              <div className="text-xs text-gray-500">
+              <div className="px-2 py-0.5 rounded-full surface text-[10px] font-medium text-[rgb(var(--foreground-subtle))]">
                 {fallbackRoutes.length} configured
               </div>
             </div>
 
-            <div className="text-xs text-gray-500 mb-4">
-              Define what happens based on this step output
+            <div className="text-xs text-[rgb(var(--foreground-muted))] mb-4 leading-relaxed">
+              Define conditional paths based on this step&apos;s output
             </div>
 
             {/* Configured Routes */}
@@ -364,18 +371,40 @@ export default function StepConfigPanel({
                   );
                   if (!routeTemplate) return null;
 
-                  const getSeverityColor = (severity: string) => {
+                  const getSeverityStyles = (severity: string) => {
                     switch (severity) {
                       case "success":
-                        return "bg-green-900/30 border-green-700/50 text-green-300";
+                        return {
+                          border: "border-[rgb(var(--success))]/20",
+                          bg: "bg-[rgb(var(--success))]/5",
+                          icon: "text-[rgb(var(--success))]",
+                          iconBg: "bg-[rgb(var(--success))]/10",
+                        };
                       case "warning":
-                        return "bg-yellow-900/30 border-yellow-700/50 text-yellow-300";
+                        return {
+                          border: "border-[rgb(var(--warning))]/20",
+                          bg: "bg-[rgb(var(--warning))]/5",
+                          icon: "text-[rgb(var(--warning))]",
+                          iconBg: "bg-[rgb(var(--warning))]/10",
+                        };
                       case "error":
-                        return "bg-red-900/30 border-red-700/50 text-red-300";
+                        return {
+                          border: "border-[rgb(var(--error))]/20",
+                          bg: "bg-[rgb(var(--error))]/5",
+                          icon: "text-[rgb(var(--error))]",
+                          iconBg: "bg-[rgb(var(--error))]/10",
+                        };
                       default:
-                        return "bg-blue-900/30 border-blue-700/50 text-blue-300";
+                        return {
+                          border: "border-[rgb(var(--primary))]/20",
+                          bg: "bg-[rgb(var(--primary))]/5",
+                          icon: "text-[rgb(var(--primary))]",
+                          iconBg: "bg-[rgb(var(--primary))]/10",
+                        };
                     }
                   };
+
+                  const styles = getSeverityStyles(routeTemplate.severity);
 
                   return (
                     <motion.div
@@ -383,42 +412,53 @@ export default function StepConfigPanel({
                       initial={{ opacity: 0, y: -10 }}
                       animate={{ opacity: 1, y: 0 }}
                       exit={{ opacity: 0, x: -20 }}
-                      className={`rounded-lg border p-3 ${getSeverityColor(routeTemplate.severity)}`}
+                      className={`rounded-lg border ${styles.border} ${styles.bg} overflow-hidden`}
                     >
-                      <div className="flex items-start gap-3">
-                        <div className="text-lg mt-0.5">
-                          {routeTemplate.icon}
-                        </div>
-                        <div className="flex-1 min-w-0">
-                          <div className="text-sm font-medium text-gray-200 mb-1">
-                            {routeTemplate.label}
-                          </div>
-                          <div className="text-xs text-gray-400 mb-3">
-                            {routeTemplate.description}
-                          </div>
-
-                          <select
-                            className="w-full rounded-md border border-gray-700 bg-gray-900 px-3 py-2 text-xs text-gray-200"
-                            value={route.targetStepId || ""}
-                            onChange={(e) =>
-                              updateFallbackRoute(index, e.target.value)
-                            }
+                      <div className="p-3">
+                        <div className="flex items-start gap-3">
+                          <div
+                            className={`flex-shrink-0 w-7 h-7 rounded-lg ${styles.iconBg} flex items-center justify-center`}
                           >
-                            <option value="">Select target step...</option>
-                            {availableRoutes.map((s) => (
-                              <option key={s.id} value={s.id}>
-                                {s.data?.label || s.id}
-                              </option>
-                            ))}
-                          </select>
-                        </div>
+                            <span className={`text-base ${styles.icon}`}>
+                              {routeTemplate.icon}
+                            </span>
+                          </div>
 
-                        <button
-                          onClick={() => removeFallbackRoute(index)}
-                          className="p-1.5 rounded hover:bg-gray-800 text-gray-400 hover:text-red-400 transition"
-                        >
-                          <X className="h-3.5 w-3.5" />
-                        </button>
+                          <div className="flex-1 min-w-0">
+                            <div className="text-sm font-medium text-[rgb(var(--foreground))] mb-1">
+                              {routeTemplate.label}
+                            </div>
+                            <div className="text-xs text-[rgb(var(--foreground-muted))] mb-3 leading-relaxed">
+                              {routeTemplate.description}
+                            </div>
+
+                            <div className="relative">
+                              <select
+                                className="w-full rounded-lg border border-[rgb(var(--border))] surface-elevated px-3 py-2 pr-8 text-xs text-[rgb(var(--foreground))] focus:border-[rgb(var(--primary))] focus:outline-none focus:ring-1 focus:ring-[rgb(var(--primary))] transition-all appearance-none cursor-pointer"
+                                value={route.targetStepId || ""}
+                                onChange={(e) =>
+                                  updateFallbackRoute(index, e.target.value)
+                                }
+                              >
+                                <option value="">Select target step...</option>
+                                {availableRoutes.map((s) => (
+                                  <option key={s.id} value={s.id}>
+                                    {s.data?.label || s.id}
+                                  </option>
+                                ))}
+                              </select>
+                              <ChevronDown className="absolute right-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-[rgb(var(--foreground-subtle))] pointer-events-none" />
+                            </div>
+                          </div>
+
+                          <button
+                            onClick={() => removeFallbackRoute(index)}
+                            className="flex-shrink-0 p-1.5 rounded-lg hover:surface text-[rgb(var(--foreground-subtle))] hover:text-[rgb(var(--error))] transition-all"
+                            title="Remove route"
+                          >
+                            <X className="h-3.5 w-3.5" />
+                          </button>
+                        </div>
                       </div>
                     </motion.div>
                   );
@@ -432,21 +472,28 @@ export default function StepConfigPanel({
               onOpenChange={setShowFallbackRoutes}
             >
               <PopoverTrigger asChild>
-                <button className="w-full rounded-lg border-2 border-dashed border-gray-700 hover:border-purple-600/50 bg-gray-900/50 hover:bg-purple-950/20 px-4 py-3 text-sm font-medium text-gray-400 hover:text-purple-300 transition flex items-center justify-center gap-2">
+                <motion.button
+                  whileHover={{ scale: 1.01 }}
+                  whileTap={{ scale: 0.99 }}
+                  className="w-full rounded-lg border-2 border-dashed border-[rgb(var(--border))] hover:border-[rgb(var(--primary))]/50 surface-elevated hover:bg-[rgb(var(--primary))]/5 px-4 py-3 text-sm font-medium text-[rgb(var(--foreground-muted))] hover:text-[rgb(var(--primary))] transition-all flex items-center justify-center gap-2"
+                >
                   <Plus className="h-4 w-4" />
                   Add Fallback Route
-                </button>
+                </motion.button>
               </PopoverTrigger>
 
               <PopoverContent
-                className="w-80 p-0 bg-[#1a1a1d] border-gray-800"
+                className="w-80 p-0 bg-[rgb(var(--surface-elevated))] border-[rgb(var(--border))] rounded-lg shadow-xl"
                 align="end"
               >
-                <div className="p-4 border-b border-gray-800 bg-[#111113]">
-                  <div className="text-sm font-semibold text-gray-100">
-                    Available Routes
+                <div className="p-4 border-b border-[rgb(var(--border))] surface">
+                  <div className="flex items-center gap-2 mb-1">
+                    <GitBranch className="h-3.5 w-3.5 text-[rgb(var(--primary))]" />
+                    <div className="text-sm font-semibold text-[rgb(var(--foreground))]">
+                      Available Routes
+                    </div>
                   </div>
-                  <div className="text-xs text-gray-400 mt-1">
+                  <div className="text-xs text-[rgb(var(--foreground-muted))]">
                     Choose a condition to add
                   </div>
                 </div>
@@ -457,41 +504,71 @@ export default function StepConfigPanel({
                       (r) => !fallbackRoutes.some((fr: any) => fr.id === r.id),
                     )
                     .map((route) => {
-                      const getSeverityColor = (severity: string) => {
+                      const getSeverityStyles = (severity: string) => {
                         switch (severity) {
                           case "success":
-                            return "hover:bg-green-950/30 border-green-800/30";
+                            return {
+                              hover:
+                                "hover:bg-[rgb(var(--success))]/5 hover:border-[rgb(var(--success))]/20",
+                              icon: "text-[rgb(var(--success))]",
+                              iconBg: "bg-[rgb(var(--success))]/10",
+                            };
                           case "warning":
-                            return "hover:bg-yellow-950/30 border-yellow-800/30";
+                            return {
+                              hover:
+                                "hover:bg-[rgb(var(--warning))]/5 hover:border-[rgb(var(--warning))]/20",
+                              icon: "text-[rgb(var(--warning))]",
+                              iconBg: "bg-[rgb(var(--warning))]/10",
+                            };
                           case "error":
-                            return "hover:bg-red-950/30 border-red-800/30";
+                            return {
+                              hover:
+                                "hover:bg-[rgb(var(--error))]/5 hover:border-[rgb(var(--error))]/20",
+                              icon: "text-[rgb(var(--error))]",
+                              iconBg: "bg-[rgb(var(--error))]/10",
+                            };
                           default:
-                            return "hover:bg-blue-950/30 border-blue-800/30";
+                            return {
+                              hover:
+                                "hover:bg-[rgb(var(--primary))]/5 hover:border-[rgb(var(--primary))]/20",
+                              icon: "text-[rgb(var(--primary))]",
+                              iconBg: "bg-[rgb(var(--primary))]/10",
+                            };
                         }
                       };
 
+                      const styles = getSeverityStyles(route.severity);
+
                       return (
-                        <button
+                        <motion.button
                           key={route.id}
                           onClick={() => {
                             addFallbackRoute(route);
                             setShowFallbackRoutes(false);
                           }}
-                          className={`w-full text-left rounded-lg border p-3 mb-2 transition ${getSeverityColor(route.severity)}`}
+                          whileHover={{ x: 2 }}
+                          whileTap={{ scale: 0.98 }}
+                          className={`w-full text-left rounded-lg border border-[rgb(var(--border))] surface-elevated p-3 mb-2 transition-all ${styles.hover}`}
                         >
-                          <div className="flex items-start gap-2">
-                            <span className="text-base">{route.icon}</span>
-                            <div className="flex-1">
-                              <div className="text-sm font-medium text-gray-200 mb-1">
+                          <div className="flex items-start gap-2.5">
+                            <div
+                              className={`flex-shrink-0 w-7 h-7 rounded-lg ${styles.iconBg} flex items-center justify-center`}
+                            >
+                              <span className={`text-base ${styles.icon}`}>
+                                {route.icon}
+                              </span>
+                            </div>
+                            <div className="flex-1 min-w-0">
+                              <div className="text-sm font-medium text-[rgb(var(--foreground))] mb-1">
                                 {route.label}
                               </div>
-                              <div className="text-xs text-gray-400">
+                              <div className="text-xs text-[rgb(var(--foreground-muted))] leading-relaxed">
                                 {route.description}
                               </div>
                             </div>
-                            <ChevronRight className="h-4 w-4 text-gray-600" />
+                            <ChevronRight className="h-4 w-4 text-[rgb(var(--foreground-subtle))] flex-shrink-0 mt-0.5" />
                           </div>
-                        </button>
+                        </motion.button>
                       );
                     })}
                 </div>
@@ -499,31 +576,42 @@ export default function StepConfigPanel({
             </Popover>
 
             {/* Default Route */}
-            <div className="mt-4 p-3 rounded-lg bg-gray-900 border border-gray-800">
-              <div className="text-xs font-medium text-gray-400 mb-2">
-                Default Route (if no conditions match)
+            <div className="mt-4 p-3 rounded-lg surface-elevated border border-[rgb(var(--border))]">
+              <div className="flex items-center gap-2 mb-2">
+                <div className="text-xs font-medium text-[rgb(var(--foreground-muted))]">
+                  Default Route
+                </div>
+                <div className="px-1.5 py-0.5 rounded text-[9px] font-medium surface border border-[rgb(var(--border-subtle))] text-[rgb(var(--foreground-subtle))]">
+                  Fallback
+                </div>
               </div>
-              <select
-                className="w-full rounded-md border border-gray-700 bg-gray-800 px-3 py-2 text-xs text-gray-200"
-                value={defaultRoute || ""}
-                onChange={(e) => update("defaultRoute", e.target.value)}
-              >
-                <option value="">Continue to next step</option>
-                {availableRoutes.map((s) => (
-                  <option key={s.id} value={s.id}>
-                    {s.data?.label || s.id}
-                  </option>
-                ))}
-              </select>
+              <div className="text-[10px] text-[rgb(var(--foreground-subtle))] mb-2 leading-relaxed">
+                Used when no conditions match
+              </div>
+              <div className="relative">
+                <select
+                  className="w-full rounded-lg border border-[rgb(var(--border))] surface px-3 py-2 pr-8 text-xs text-[rgb(var(--foreground))] focus:border-[rgb(var(--primary))] focus:outline-none focus:ring-1 focus:ring-[rgb(var(--primary))] transition-all appearance-none cursor-pointer"
+                  value={defaultRoute || ""}
+                  onChange={(e) => update("defaultRoute", e.target.value)}
+                >
+                  <option value="">Continue to next step</option>
+                  {availableRoutes.map((s) => (
+                    <option key={s.id} value={s.id}>
+                      {s.data?.label || s.id}
+                    </option>
+                  ))}
+                </select>
+                <ChevronDown className="absolute right-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-[rgb(var(--foreground-subtle))] pointer-events-none" />
+              </div>
             </div>
           </div>
         )}
       </div>
 
       {/* Footer */}
-      <div className="border-t border-gray-800 bg-[#1a1a1d] p-4">
+      <div className="border-t border-[rgb(var(--border))] surface-elevated p-4">
         <Button
-          className="w-full rounded-lg bg-blue-600 hover:bg-blue-700 transition"
+          className="w-full rounded-lg bg-[rgb(var(--primary))] hover:bg-[rgb(var(--primary-hover))] text-[rgb(var(--primary-foreground))] transition"
           onClick={onClose}
         >
           Save & Close
@@ -558,46 +646,70 @@ function VariableButton({
     <div className="group relative">
       <button
         onClick={onClick}
-        className={`w-full text-left rounded-lg hover:bg-gray-800 transition ${
+        className={`w-full text-left rounded-lg hover:surface-elevated transition-all duration-200 ${
           small ? "px-2 py-1.5" : "px-3 py-2"
         }`}
       >
         <div className="flex items-start justify-between gap-2">
           <div className="flex-1 min-w-0">
             <div
-              className={`font-medium text-gray-200 ${small ? "text-xs" : "text-sm"}`}
+              className={`font-medium text-[rgb(var(--foreground))] ${small ? "text-xs" : "text-sm"}`}
             >
               {label}
             </div>
             {description && (
-              <div className="text-[10px] text-gray-500 mt-0.5">
+              <div className="text-[10px] text-[rgb(var(--foreground-subtle))] mt-0.5">
                 {description}
               </div>
             )}
           </div>
+          {/* ✅ FIX: Add proper text wrapping and truncation */}
           <div
-            className={`font-mono text-gray-500 group-hover:text-blue-400 transition ${
+            className={`font-mono text-[rgb(var(--foreground-subtle))] group-hover:text-[rgb(var(--primary))] transition-colors break-all ${
               small ? "text-[10px]" : "text-xs"
-            }`}
+            } max-w-[140px]`}
+            title={value} // Show full value on hover
           >
             {value}
           </div>
         </div>
       </button>
 
-      <button
+      <motion.button
         onClick={(e) => {
           e.stopPropagation();
           onCopy();
         }}
-        className="absolute right-2 top-1/2 -translate-y-1/2 opacity-0 group-hover:opacity-100 p-1.5 rounded bg-gray-900 hover:bg-gray-800 border border-gray-700 transition-all"
+        initial={{ opacity: 0, scale: 0.8 }}
+        animate={{
+          opacity: copied ? 1 : 0,
+          scale: copied ? 1 : 0.8,
+        }}
+        whileHover={{ scale: 1.05 }}
+        className="absolute right-2 top-1/2 -translate-y-1/2 group-hover:opacity-100 p-1.5 rounded-md surface-elevated hover:surface border border-[rgb(var(--border))] transition-all shadow-sm"
       >
-        {copied ? (
-          <Check className="h-3 w-3 text-green-400" />
-        ) : (
-          <Copy className="h-3 w-3 text-gray-400" />
-        )}
-      </button>
+        <AnimatePresence mode="wait">
+          {copied ? (
+            <motion.div
+              key="check"
+              initial={{ scale: 0 }}
+              animate={{ scale: 1 }}
+              exit={{ scale: 0 }}
+            >
+              <Check className="h-3 w-3 text-[rgb(var(--success))]" />
+            </motion.div>
+          ) : (
+            <motion.div
+              key="copy"
+              initial={{ scale: 0 }}
+              animate={{ scale: 1 }}
+              exit={{ scale: 0 }}
+            >
+              <Copy className="h-3 w-3 text-[rgb(var(--foreground-muted))]" />
+            </motion.div>
+          )}
+        </AnimatePresence>
+      </motion.button>
     </div>
   );
 }
