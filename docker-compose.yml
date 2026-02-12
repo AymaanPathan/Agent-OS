@@ -1,0 +1,67 @@
+version: '3.8'
+
+services:
+  # Frontend Service
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    ports:
+      - "3000:3000"
+    environment:
+      - NEXT_PUBLIC_API_URL=http://localhost:5000
+    depends_on:
+      - backend
+    networks:
+      - app-network
+
+  # Backend Service
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    ports:
+      - "5000:5000"
+    environment:
+      - MONGODB_URI=${MONGODB_URI}
+      - FRONTEND_URL=http://localhost:3000
+      - GROQ_API_KEY=${GROQ_API_KEY}
+      - SLACK_WEBHOOK_URL=${SLACK_WEBHOOK_URL}
+      - ARCHESTRA_PROXY_URL=http://archestra:9000
+      - ARCHESTRA_MCP_TOKEN=${ARCHESTRA_MCP_TOKEN}
+      - NODE_ENV=development
+    depends_on:
+      - mongodb
+      - archestra
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock  # For Docker access
+    networks:
+      - app-network
+
+  # Archestra Service
+  archestra:
+    image: archestra/platform:latest
+    ports:
+      - "9000:9000"
+    environment:
+      - NODE_ENV=production
+    networks:
+      - app-network
+
+  # MongoDB Service
+  mongodb:
+    image: mongo:7
+    ports:
+      - "27017:27017"
+    volumes:
+      - mongodb_data:/data/db
+    networks:
+      - app-network
+
+volumes:
+  mongodb_data:
+    driver: local
+
+networks:
+  app-network:
+    driver: bridge

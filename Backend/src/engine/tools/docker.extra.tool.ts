@@ -1,10 +1,21 @@
 import { exec } from "child_process";
 import { promisify } from "util";
+import { buildDockerCommand } from "../../config/docker.config";
 
 const execAsync = promisify(exec);
 
+// Helper: Execute Docker command with proper host configuration
+async function execDockerCommand(command: string, timeout?: number) {
+  const fullCommand = buildDockerCommand(command);
+  console.log(`🐳 [Docker Extra] Executing: ${fullCommand}`);
+
+  return await execAsync(fullCommand, {
+    timeout: timeout || 30000,
+  });
+}
+
 // ====================================
-// 🐳 DOCKER EXTRA TOOLS (ENHANCED WITH LOGGING)
+// 🐳 DOCKER EXTRA TOOLS (WITH REMOTE SUPPORT)
 // ====================================
 
 export async function runDockerStop(config: { containerName: string }) {
@@ -12,10 +23,7 @@ export async function runDockerStop(config: { containerName: string }) {
   console.log("🛑 [DockerStop] Config:", JSON.stringify(config, null, 2));
 
   try {
-    const command = `docker stop ${config.containerName}`;
-    console.log("🛑 [DockerStop] Executing:", command);
-
-    await execAsync(command);
+    await execDockerCommand(`stop ${config.containerName}`);
 
     const result = {
       success: true,
@@ -48,10 +56,7 @@ export async function runDockerStart(config: { containerName: string }) {
   console.log("▶️ [DockerStart] Config:", JSON.stringify(config, null, 2));
 
   try {
-    const command = `docker start ${config.containerName}`;
-    console.log("▶️ [DockerStart] Executing:", command);
-
-    await execAsync(command);
+    await execDockerCommand(`start ${config.containerName}`);
 
     const result = {
       success: true,
@@ -90,10 +95,8 @@ export async function runDockerRemove(config: {
     const force = config.force !== false;
     console.log("🗑️ [DockerRemove] Force:", force);
 
-    const command = `docker rm ${force ? "-f" : ""} ${config.containerName}`;
-    console.log("🗑️ [DockerRemove] Executing:", command);
-
-    await execAsync(command);
+    const cmd = `rm ${force ? "-f" : ""} ${config.containerName}`;
+    await execDockerCommand(cmd);
 
     const result = {
       success: true,
@@ -126,14 +129,11 @@ export async function runDockerPruneSystem(config: { all?: boolean }) {
   console.log("🧹 [DockerPrune] Config:", JSON.stringify(config, null, 2));
 
   try {
-    const cmd = config.all
-      ? `docker system prune -af`
-      : `docker system prune -f`;
+    const cmd = config.all ? `system prune -af` : `system prune -f`;
 
-    console.log("🧹 [DockerPrune] Executing:", cmd);
     console.log("🧹 [DockerPrune] All flag:", config.all || false);
 
-    const { stdout } = await execAsync(cmd, { timeout: 60000 });
+    const { stdout } = await execDockerCommand(cmd, 60000);
     console.log("🧹 [DockerPrune] Output length:", stdout.length);
 
     const result = {

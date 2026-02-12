@@ -1,15 +1,16 @@
 import { exec } from "child_process";
 import { promisify } from "util";
+import { buildDockerCommand } from "../../config/docker.config";
 
 const execAsync = promisify(exec);
 
 // ====================================
-// 🐳 IMPROVED DOCKER TOOLS
+// 🐳 IMPROVED DOCKER TOOLS WITH REMOTE SUPPORT
 // ====================================
 
 export type DockerStatusConfig = {
   containerName: string;
-  checkApplicationHealth?: boolean; // NEW: Check app-level health
+  checkApplicationHealth?: boolean;
   healthTimeout?: number;
 };
 
@@ -18,8 +19,8 @@ export type DockerStatusResult = {
   containerName: string;
   status: string;
   running: boolean;
-  health?: string; // Docker native health
-  applicationHealthy?: boolean; // NEW: Application-level health
+  health?: string;
+  applicationHealthy?: boolean;
   uptime?: string;
   image?: string;
   ports?: string[];
@@ -29,7 +30,7 @@ export type DockerStatusResult = {
 export type DockerListAllConfig = {
   filters?: string;
   includeStats?: boolean;
-  checkApplicationHealth?: boolean; // NEW
+  checkApplicationHealth?: boolean;
 };
 
 export type DockerListAllResult = {
@@ -39,12 +40,12 @@ export type DockerListAllResult = {
   healthyCount: number;
   unhealthyCount: number;
   unhealthyContainers: string[];
-  applicationUnhealthyContainers: string[]; // NEW
+  applicationUnhealthyContainers: string[];
   containers: Array<{
     name: string;
     status: string;
     health?: string;
-    applicationHealthy?: boolean; // NEW
+    applicationHealthy?: boolean;
     image: string;
     ports?: string;
     cpuPercent?: string;
@@ -54,15 +55,26 @@ export type DockerListAllResult = {
   error?: string;
 };
 
-// NEW: Quick application health check
+// Helper: Execute Docker command with proper host configuration
+async function execDockerCommand(command: string, timeout?: number) {
+  const fullCommand = buildDockerCommand(command);
+  console.log(`🐳 [Docker] Executing: ${fullCommand}`);
+
+  return await execAsync(fullCommand, {
+    timeout: timeout || 30000,
+    maxBuffer: 10 * 1024 * 1024, // 10MB buffer for large outputs
+  });
+}
+
+// Application health check (works for both local and remote)
 async function checkApplicationHealth(
   containerName: string,
   timeout: number = 3000,
 ): Promise<boolean> {
   try {
     // Get container ports
-    const { stdout: inspectOut } = await execAsync(
-      `docker inspect ${containerName}`,
+    const { stdout: inspectOut } = await execDockerCommand(
+      `inspect ${containerName}`,
     );
     const containers = JSON.parse(inspectOut);
 
@@ -96,10 +108,18 @@ async function checkApplicationHealth(
     const axios = require("axios");
     const healthPaths = ["/health", "/healthz", "/"];
 
+    // Get the host to connect to
+    const dockerHost = process.env.DOCKER_HOST || "localhost";
+    const host =
+      dockerHost.replace(/^tcp:\/\//, "").split(":")[0] || "localhost";
+
     for (const port of ports) {
       for (const path of healthPaths) {
         try {
-          const response = await axios.get(`http://localhost:${port}${path}`, {
+          const url = `http://${host}:${port}${path}`;
+          console.log(`🏥 [Health Check] Trying: ${url}`);
+
+          const response = await axios.get(url, {
             timeout,
             validateStatus: () => true,
           });
@@ -121,14 +141,16 @@ async function checkApplicationHealth(
             }
             return true;
           }
-        } catch {
+        } catch (err) {
+          console.log(`❌ [Health Check] Failed for ${host}:${port}${path}`);
           continue;
         }
       }
     }
 
     return false;
-  } catch {
+  } catch (err) {
+    console.error(`❌ [Health Check] Error:`, err);
     return false;
   }
 }
@@ -137,8 +159,8 @@ export async function runDockerStatus(
   config: DockerStatusConfig,
 ): Promise<DockerStatusResult> {
   try {
-    const { stdout } = await execAsync(
-      `docker inspect ${config.containerName}`,
+    const { stdout } = await execDockerCommand(
+      `inspect ${config.containerName}`,
     );
     const containers = JSON.parse(stdout);
 
@@ -158,7 +180,7 @@ export async function runDockerStatus(
     const running = status === "running";
     const health = state.Health?.Status;
 
-    // NEW: Check application health if requested
+    // Check application health if requested
     let applicationHealthy: boolean | undefined;
     if (config.checkApplicationHealth && running) {
       applicationHealthy = await checkApplicationHealth(
@@ -206,6 +228,7 @@ export async function runDockerStatus(
       ports: ports.length > 0 ? ports : undefined,
     };
   } catch (err: any) {
+    console.error(`❌ [Docker Status] Error:`, err.message);
     return {
       success: false,
       containerName: config.containerName,
@@ -220,12 +243,12 @@ export async function runDockerListAll(
   config: DockerListAllConfig,
 ): Promise<DockerListAllResult> {
   try {
-    let cmd = "docker ps -a --format json";
+    let cmd = "ps -a --format json";
     if (config.filters) {
       cmd += ` --filter "${config.filters}"`;
     }
 
-    const { stdout } = await execAsync(cmd);
+    const { stdout } = await execDockerCommand(cmd);
     const lines = stdout.trim().split("\n").filter(Boolean);
 
     const containers = [];
@@ -245,15 +268,15 @@ export async function runDockerListAll(
 
       // Get detailed info
       try {
-        const { stdout: inspectOut } = await execAsync(
-          `docker inspect ${name}`,
+        const { stdout: inspectOut } = await execDockerCommand(
+          `inspect ${name}`,
         );
         const details = JSON.parse(inspectOut);
 
         if (details && details.length > 0) {
           health = details[0].State?.Health?.Status;
 
-          // NEW: Check application health if requested
+          // Check application health if requested
           if (config.checkApplicationHealth && running) {
             applicationHealthy = await checkApplicationHealth(name);
           }
@@ -261,8 +284,8 @@ export async function runDockerListAll(
           // Get stats if requested
           if (config.includeStats && running) {
             try {
-              const { stdout: statsOut } = await execAsync(
-                `docker stats ${name} --no-stream --format "{{.CPUPerc}},{{.MemPerc}}"`,
+              const { stdout: statsOut } = await execDockerCommand(
+                `stats ${name} --no-stream --format "{{.CPUPerc}},{{.MemPerc}}"`,
               );
               const [cpu, mem] = statsOut.trim().split(",");
               cpuPercent = cpu;
@@ -326,6 +349,7 @@ export async function runDockerListAll(
       timestamp: new Date().toISOString(),
     };
   } catch (err: any) {
+    console.error(`❌ [Docker List] Error:`, err.message);
     return {
       success: false,
       totalCount: 0,
@@ -350,8 +374,8 @@ export async function runDockerLogs(config: {
     const tail = config.tail || 100;
     const timestamps = config.timestamps ? "--timestamps" : "";
 
-    const cmd = `docker logs ${timestamps} --tail ${tail} ${config.containerName}`;
-    const { stdout, stderr } = await execAsync(cmd);
+    const cmd = `logs ${timestamps} --tail ${tail} ${config.containerName}`;
+    const { stdout, stderr } = await execDockerCommand(cmd);
 
     const logs = stdout || stderr || "";
 
@@ -363,6 +387,7 @@ export async function runDockerLogs(config: {
       timestamp: new Date().toISOString(),
     };
   } catch (err: any) {
+    console.error(`❌ [Docker Logs] Error:`, err.message);
     return {
       success: false,
       containerName: config.containerName,
@@ -380,9 +405,9 @@ export async function runDockerRestart(config: {
 }) {
   try {
     const timeout = config.timeout || 10;
-    const cmd = `docker restart -t ${timeout} ${config.containerName}`;
+    const cmd = `restart -t ${timeout} ${config.containerName}`;
 
-    await execAsync(cmd);
+    await execDockerCommand(cmd);
 
     return {
       success: true,
@@ -391,6 +416,7 @@ export async function runDockerRestart(config: {
       timestamp: new Date().toISOString(),
     };
   } catch (err: any) {
+    console.error(`❌ [Docker Restart] Error:`, err.message);
     return {
       success: false,
       action: "restart",
@@ -409,8 +435,8 @@ export async function runDockerRollback(config: {
 }) {
   try {
     // Get current container info
-    const { stdout: inspectOut } = await execAsync(
-      `docker inspect ${config.containerName}`,
+    const { stdout: inspectOut } = await execDockerCommand(
+      `inspect ${config.containerName}`,
     );
     const details = JSON.parse(inspectOut);
 
@@ -421,11 +447,11 @@ export async function runDockerRollback(config: {
     const previousImage = details[0].Config?.Image;
 
     // Stop and remove current container
-    await execAsync(`docker stop ${config.containerName}`);
-    await execAsync(`docker rm ${config.containerName}`);
+    await execDockerCommand(`stop ${config.containerName}`);
+    await execDockerCommand(`rm ${config.containerName}`);
 
     // Start new container with rollback image
-    let cmd = `docker run -d --name ${config.containerName}`;
+    let cmd = `run -d --name ${config.containerName}`;
 
     if (config.preserveVolumes !== false) {
       // Preserve volumes
@@ -445,7 +471,7 @@ export async function runDockerRollback(config: {
 
     cmd += ` ${config.rollbackImage}`;
 
-    await execAsync(cmd);
+    await execDockerCommand(cmd);
 
     return {
       success: true,
@@ -456,6 +482,7 @@ export async function runDockerRollback(config: {
       timestamp: new Date().toISOString(),
     };
   } catch (err: any) {
+    console.error(`❌ [Docker Rollback] Error:`, err.message);
     return {
       success: false,
       action: "rollback",
