@@ -6,7 +6,6 @@ import dotenv from "dotenv";
 dotenv.config();
 import mongoose from "mongoose";
 
-// Import routes
 import workflowRoutes from "./routes/workflow.routes";
 import runRoutes from "./routes/run.routes";
 import toolRoutes from "./routes/tool.route";
