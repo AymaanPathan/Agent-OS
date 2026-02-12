@@ -13,14 +13,13 @@ import {
   GripVertical,
   ChevronRight,
   ChevronDown,
-  List,
+  LayoutGrid,
   Moon,
   Sun,
   Activity,
   Zap,
   Wrench,
   ShieldCheck,
-  LayoutGrid,
 } from "lucide-react";
 import {
   DndContext,
@@ -54,10 +53,6 @@ import StepConfigPanel from "@/components/StepConfigPanel";
 import { useTheme } from "@/components/ThemeProvider";
 import MonitorDashboard from "@/components/MonitorDashboard";
 
-// ─────────────────────────────────────────────────────────────────────────────
-// Helpers
-// ─────────────────────────────────────────────────────────────────────────────
-
 const getWorkspaceId = () => {
   if (typeof window === "undefined") return "";
   let id = localStorage.getItem("agentos_workspace");
@@ -77,22 +72,22 @@ const categoryIcons: Record<string, any> = {
   Agents: Activity,
 };
 
-const categoryMeta: Record<string, { color: string; lightColor: string }> = {
+const categoryMeta: Record<string, { color: string; bg: string }> = {
   Triggers: {
-    color: "text-amber-600 dark:text-amber-500",
-    lightColor: "bg-amber-50 dark:bg-amber-950/30",
+    color: "text-amber-500 dark:text-amber-400",
+    bg: "bg-amber-50 dark:bg-amber-500/10",
   },
   Tools: {
-    color: "text-blue-600 dark:text-blue-500",
-    lightColor: "bg-blue-50 dark:bg-blue-950/30",
+    color: "text-orange-600 dark:text-orange-400",
+    bg: "bg-orange-50 dark:bg-orange-500/10",
   },
   "Logic & Safety": {
-    color: "text-emerald-600 dark:text-emerald-500",
-    lightColor: "bg-emerald-50 dark:bg-emerald-950/30",
+    color: "text-emerald-600 dark:text-emerald-400",
+    bg: "bg-emerald-50 dark:bg-emerald-500/10",
   },
   Agents: {
-    color: "text-purple-600 dark:text-purple-500",
-    lightColor: "bg-purple-50 dark:bg-purple-950/30",
+    color: "text-purple-600 dark:text-purple-400",
+    bg: "bg-purple-50 dark:bg-purple-500/10",
   },
 };
 
@@ -102,10 +97,6 @@ const QUICK_ADD_TYPES = [
   "logic.approval",
   "agent.aiAnalyzer",
 ];
-
-// ─────────────────────────────────────────────────────────────────────────────
-// Timeline Step Component
-// ─────────────────────────────────────────────────────────────────────────────
 
 function TimelineStep({ step, index, onClick, selected }: any) {
   const {
@@ -129,7 +120,7 @@ function TimelineStep({ step, index, onClick, selected }: any) {
   return (
     <div ref={setNodeRef} style={style} className="relative">
       {index > 0 && (
-        <div className="absolute left-6 -top-3 w-px h-3 bg-gray-200 dark:bg-gray-800" />
+        <div className="absolute left-6 -top-3 w-px h-3 bg-[rgb(var(--border))]" />
       )}
 
       <motion.div
@@ -137,10 +128,10 @@ function TimelineStep({ step, index, onClick, selected }: any) {
         animate={{ opacity: 1, y: 0 }}
         transition={{ delay: index * 0.03 }}
         onClick={onClick}
-        className={`group relative rounded-xl border transition-all cursor-pointer ${
+        className={`group relative rounded-lg border transition-all cursor-pointer ${
           selected
-            ? "border-blue-500 dark:border-blue-600 bg-blue-50 dark:bg-blue-950/30 shadow-sm"
-            : "border-gray-200 dark:border-gray-800 hover:border-gray-300 dark:hover:border-gray-700 bg-white dark:bg-gray-900"
+            ? "border-[rgb(var(--primary))] surface-elevated shadow-sm shadow-[rgb(var(--primary))]/20"
+            : "border-[rgb(var(--border))] surface-elevated hover:border-[rgb(var(--border-subtle))]"
         }`}
       >
         <div
@@ -148,25 +139,25 @@ function TimelineStep({ step, index, onClick, selected }: any) {
           {...listeners}
           className="absolute left-2 top-1/2 -translate-y-1/2 cursor-grab active:cursor-grabbing opacity-0 group-hover:opacity-100 transition-opacity"
         >
-          <GripVertical className="h-4 w-4 text-gray-400" />
+          <GripVertical className="h-4 w-4 text-[rgb(var(--foreground-subtle))]" />
         </div>
 
-        <div className="p-4 pl-10">
+        <div className="p-3.5 pl-10">
           <div className="flex items-start justify-between gap-3">
-            <div className="flex-shrink-0 w-7 h-7 rounded-lg bg-gray-100 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 flex items-center justify-center">
-              <span className="text-xs font-semibold text-gray-700 dark:text-gray-300">
+            <div className="flex-shrink-0 w-6 h-6 rounded-md surface border border-[rgb(var(--border))] flex items-center justify-center">
+              <span className="text-xs font-semibold text-[rgb(var(--foreground-muted))]">
                 {index + 1}
               </span>
             </div>
 
             <div className="flex-1 min-w-0">
               <div className="flex items-center gap-2 mb-1">
-                <Icon className={`h-4 w-4 ${meta.color}`} />
-                <span className="text-sm font-medium text-gray-900 dark:text-gray-100">
+                <Icon className={`h-3.5 w-3.5 ${meta.color}`} />
+                <span className="text-sm font-medium text-[rgb(var(--foreground))]">
                   {step.data?.label || "Unnamed Step"}
                 </span>
               </div>
-              <p className="text-xs text-gray-600 dark:text-gray-400 leading-relaxed">
+              <p className="text-xs text-[rgb(var(--foreground-muted))] leading-relaxed">
                 {step.data?.desc || "No description"}
               </p>
 
@@ -178,7 +169,7 @@ function TimelineStep({ step, index, onClick, selected }: any) {
                       .map(([key, value]: any) => (
                         <span
                           key={key}
-                          className="text-[10px] px-2 py-0.5 rounded-md bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-400 border border-gray-200 dark:border-gray-700"
+                          className="text-[10px] px-2 py-0.5 rounded surface border border-[rgb(var(--border-subtle))] text-[rgb(var(--foreground-muted))]"
                         >
                           {key}:{" "}
                           {typeof value === "object"
@@ -187,7 +178,7 @@ function TimelineStep({ step, index, onClick, selected }: any) {
                         </span>
                       ))}
                     {Object.keys(step.data.config).length > 2 && (
-                      <span className="text-[10px] px-2 py-0.5 rounded-md bg-gray-100 dark:bg-gray-800 text-gray-500 dark:text-gray-500">
+                      <span className="text-[10px] px-2 py-0.5 rounded surface text-[rgb(var(--foreground-subtle))]">
                         +{Object.keys(step.data.config).length - 2}
                       </span>
                     )}
@@ -195,17 +186,13 @@ function TimelineStep({ step, index, onClick, selected }: any) {
                 )}
             </div>
 
-            <ChevronRight className="h-4 w-4 text-gray-400 flex-shrink-0" />
+            <ChevronRight className="h-4 w-4 text-[rgb(var(--foreground-subtle))] flex-shrink-0" />
           </div>
         </div>
       </motion.div>
     </div>
   );
 }
-
-// ─────────────────────────────────────────────────────────────────────────────
-// Main BuilderPage
-// ─────────────────────────────────────────────────────────────────────────────
 
 export default function BuilderPage() {
   const { theme, toggleTheme } = useTheme();
@@ -311,10 +298,7 @@ export default function BuilderPage() {
       source: step.id,
       target: steps[index + 1].id,
       animated: true,
-      style: {
-        strokeWidth: 2,
-        stroke: theme === "dark" ? "#4b5563" : "#d1d5db",
-      },
+      style: { strokeWidth: 2, stroke: "rgb(var(--border))" },
     }));
     return { nodes, edges };
   };
@@ -361,14 +345,13 @@ export default function BuilderPage() {
   };
 
   return (
-    <div className="relative h-screen w-screen overflow-hidden bg-gray-50 dark:bg-gray-950">
+    <div className="relative h-screen w-screen overflow-hidden bg-[rgb(var(--background))]">
       <AIWorkflowGenerator
         isOpen={showAIGenerator}
         onClose={() => setShowAIGenerator(false)}
         onWorkflowGenerated={handleAIWorkflowGenerated}
       />
 
-      {/* Builder View */}
       <motion.div
         className="absolute inset-0 flex"
         animate={{ x: showDashboard ? "-100%" : showMonitor ? "-100%" : "0%" }}
@@ -376,37 +359,37 @@ export default function BuilderPage() {
       >
         {/* Sidebar */}
         <motion.div
-          className="h-full border-r border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900 flex flex-col"
-          animate={{ width: sidebarCollapsed ? 0 : 320 }}
+          className="h-full border-r border-[rgb(var(--sidebar-border))] bg-[rgb(var(--sidebar))] flex flex-col"
+          animate={{ width: sidebarCollapsed ? 0 : 280 }}
           transition={{ duration: 0.2 }}
         >
           {!sidebarCollapsed && (
             <>
-              <div className="border-b border-gray-200 dark:border-gray-800 bg-gray-50 dark:bg-gray-900 p-4">
-                <div className="flex items-center gap-2 mb-3">
-                  <div className="h-7 w-7 flex items-center justify-center rounded-lg bg-gradient-to-br from-blue-600 to-blue-700">
-                    <LayoutGrid className="h-3.5 w-3.5 text-white" />
+              <div className="border-b border-[rgb(var(--sidebar-border))] surface p-4">
+                <div className="flex items-center gap-2.5 mb-3">
+                  <div className="h-7 w-7 flex items-center justify-center rounded-lg bg-[rgb(var(--primary))]">
+                    <LayoutGrid className="h-3.5 w-3.5 text-[rgb(var(--primary-foreground))]" />
                   </div>
-                  <div className="text-sm font-semibold text-gray-900 dark:text-gray-100">
+                  <div className="text-sm font-semibold text-[rgb(var(--foreground))]">
                     Step Library
                   </div>
                 </div>
 
                 <div className="relative">
-                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-gray-400" />
+                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-[rgb(var(--foreground-subtle))]" />
                   <input
                     type="text"
                     placeholder="Search steps..."
                     value={searchQuery}
                     onChange={(e) => setSearchQuery(e.target.value)}
-                    className="w-full rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 pl-9 pr-8 py-2 text-xs text-gray-900 dark:text-gray-100 placeholder:text-gray-500 focus:border-blue-500 dark:focus:border-blue-600 focus:outline-none focus:ring-1 focus:ring-blue-500 dark:focus:ring-blue-600"
+                    className="w-full rounded-lg border border-[rgb(var(--border))] surface-elevated pl-9 pr-8 py-2 text-xs text-[rgb(var(--foreground))] placeholder:text-[rgb(var(--foreground-subtle))] focus:border-[rgb(var(--primary))] focus:outline-none focus:ring-1 focus:ring-[rgb(var(--primary))]"
                   />
                   {searchQuery && (
                     <button
                       onClick={() => setSearchQuery("")}
-                      className="absolute right-2 top-1/2 -translate-y-1/2 p-1 rounded hover:bg-gray-100 dark:hover:bg-gray-800"
+                      className="absolute right-2 top-1/2 -translate-y-1/2 p-1 rounded hover:surface"
                     >
-                      <X className="h-3 w-3 text-gray-400" />
+                      <X className="h-3 w-3 text-[rgb(var(--foreground-subtle))]" />
                     </button>
                   )}
                 </div>
@@ -415,7 +398,7 @@ export default function BuilderPage() {
               <div className="flex-1 overflow-auto p-3">
                 {!searchQuery && (
                   <div className="mb-4">
-                    <div className="text-[9px] font-semibold text-gray-500 uppercase tracking-widest px-1 mb-2">
+                    <div className="text-[9px] font-semibold text-[rgb(var(--foreground-subtle))] uppercase tracking-widest px-1 mb-2">
                       Quick Add
                     </div>
                     <div className="flex flex-wrap gap-1.5">
@@ -432,16 +415,16 @@ export default function BuilderPage() {
                               onClick={() => addStep(node.type)}
                               whileTap={{ scale: 0.95 }}
                               title={node.label}
-                              className={`group flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border border-gray-200 dark:border-gray-700 ${meta.lightColor} hover:border-gray-300 dark:hover:border-gray-600 transition-all`}
+                              className={`group flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border border-[rgb(var(--border))] ${meta.bg} hover:border-[rgb(var(--primary))] transition-all`}
                             >
                               <Icon className={`h-3 w-3 ${meta.color}`} />
                               <span
-                                className="text-[10px] font-medium text-gray-700 dark:text-gray-300 truncate"
+                                className="text-[10px] font-medium text-[rgb(var(--foreground))] truncate"
                                 style={{ maxWidth: 72 }}
                               >
                                 {node.label}
                               </span>
-                              <Plus className="h-2.5 w-2.5 text-gray-400 group-hover:text-gray-600 dark:group-hover:text-gray-300" />
+                              <Plus className="h-2.5 w-2.5 text-[rgb(var(--foreground-subtle))] group-hover:text-[rgb(var(--primary))]" />
                             </motion.button>
                           );
                         })}
@@ -450,7 +433,7 @@ export default function BuilderPage() {
                 )}
 
                 {!searchQuery && (
-                  <div className="border-t border-gray-200 dark:border-gray-800 mb-3" />
+                  <div className="border-t border-[rgb(var(--border-subtle))] mb-3" />
                 )}
 
                 <div className="space-y-1.5">
@@ -465,34 +448,34 @@ export default function BuilderPage() {
                     return (
                       <div
                         key={category}
-                        className="rounded-xl overflow-hidden border border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900"
+                        className="rounded-lg overflow-hidden border border-[rgb(var(--border))] surface-elevated"
                       >
                         <motion.button
                           onClick={() => toggleCategory(category)}
                           whileTap={{ scale: 0.99 }}
-                          className="w-full flex items-center justify-between px-3 py-2.5 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors"
+                          className="w-full flex items-center justify-between px-3 py-2.5 hover:surface transition-colors"
                         >
                           <div className="flex items-center gap-2.5">
                             <div
-                              className={`flex items-center justify-center rounded-md ${meta.lightColor} border border-gray-200 dark:border-gray-700`}
-                              style={{ width: 22, height: 22 }}
+                              className={`flex items-center justify-center rounded-md ${meta.bg} border border-[rgb(var(--border))]`}
+                              style={{ width: 20, height: 20 }}
                             >
                               <Icon className={`h-3 w-3 ${meta.color}`} />
                             </div>
-                            <span className="text-xs font-semibold text-gray-900 dark:text-gray-100">
+                            <span className="text-xs font-semibold text-[rgb(var(--foreground))]">
                               {category}
                             </span>
                           </div>
 
                           <div className="flex items-center gap-2">
-                            <span className="text-[9px] font-semibold px-1.5 py-0.5 rounded-full bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-400">
+                            <span className="text-[9px] font-semibold px-1.5 py-0.5 rounded-full surface text-[rgb(var(--foreground-muted))]">
                               {items.length}
                             </span>
                             <motion.div
                               animate={{ rotate: isCollapsed ? -90 : 0 }}
                               transition={{ duration: 0.2 }}
                             >
-                              <ChevronDown className="h-3.5 w-3.5 text-gray-400" />
+                              <ChevronDown className="h-3.5 w-3.5 text-[rgb(var(--foreground-subtle))]" />
                             </motion.div>
                           </div>
                         </motion.button>
@@ -515,18 +498,18 @@ export default function BuilderPage() {
                                     whileHover={{ x: 2 }}
                                     whileTap={{ scale: 0.98 }}
                                   >
-                                    <div className="flex items-center gap-2.5 rounded-lg px-2.5 py-2 hover:bg-gray-50 dark:hover:bg-gray-800 border border-transparent hover:border-gray-200 dark:hover:border-gray-700 transition-all">
+                                    <div className="flex items-center gap-2.5 rounded-lg px-2.5 py-2 hover:surface border border-transparent hover:border-[rgb(var(--border))] transition-all">
                                       <div className="flex-1 min-w-0 text-left">
-                                        <div className="text-xs font-medium text-gray-900 dark:text-gray-100 group-hover:text-blue-600 dark:group-hover:text-blue-500 transition-colors">
+                                        <div className="text-xs font-medium text-[rgb(var(--foreground))] group-hover:text-[rgb(var(--primary))] transition-colors">
                                           {node.label}
                                         </div>
-                                        <div className="text-[10px] text-gray-500 dark:text-gray-400 leading-snug truncate">
+                                        <div className="text-[10px] text-[rgb(var(--foreground-muted))] leading-snug truncate">
                                           {node.desc}
                                         </div>
                                       </div>
 
-                                      <div className="flex-shrink-0 flex items-center justify-center w-5 h-5 rounded-md bg-transparent group-hover:bg-gray-100 dark:group-hover:bg-gray-700 transition-all">
-                                        <Plus className="h-3 w-3 text-gray-400 group-hover:text-gray-600 dark:group-hover:text-gray-300" />
+                                      <div className="flex-shrink-0 flex items-center justify-center w-5 h-5 rounded-md bg-transparent group-hover:surface transition-all">
+                                        <Plus className="h-3 w-3 text-[rgb(var(--foreground-subtle))] group-hover:text-[rgb(var(--primary))]" />
                                       </div>
                                     </div>
                                   </motion.button>
@@ -546,19 +529,19 @@ export default function BuilderPage() {
                     animate={{ opacity: 1, y: 0 }}
                     className="text-center py-14"
                   >
-                    <div className="inline-flex items-center justify-center w-12 h-12 rounded-xl bg-gray-100 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 mb-3">
-                      <Search className="h-5 w-5 text-gray-400" />
+                    <div className="inline-flex items-center justify-center w-12 h-12 rounded-xl surface border border-[rgb(var(--border))] mb-3">
+                      <Search className="h-5 w-5 text-[rgb(var(--foreground-subtle))]" />
                     </div>
-                    <p className="text-xs font-medium text-gray-600 dark:text-gray-400">
+                    <p className="text-xs font-medium text-[rgb(var(--foreground-muted))]">
                       No steps match
                     </p>
-                    <p className="text-[10px] text-gray-500 mt-0.5">
+                    <p className="text-[10px] text-[rgb(var(--foreground-subtle))] mt-0.5">
                       Try a different search term
                     </p>
                     <motion.button
                       onClick={() => setSearchQuery("")}
                       whileTap={{ scale: 0.95 }}
-                      className="mt-3 text-[10px] font-medium text-blue-600 dark:text-blue-500 hover:text-blue-700 dark:hover:text-blue-400"
+                      className="mt-3 text-[10px] font-medium text-[rgb(var(--primary))] hover:text-[rgb(var(--primary-hover))]"
                     >
                       Clear search
                     </motion.button>
@@ -574,23 +557,23 @@ export default function BuilderPage() {
           <motion.header
             initial={{ y: -20, opacity: 0 }}
             animate={{ y: 0, opacity: 1 }}
-            className="flex h-14 items-center justify-between border-b border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900 px-6"
+            className="flex h-14 items-center justify-between border-b border-[rgb(var(--border))] surface-elevated px-6"
           >
             <div className="flex items-center gap-4">
               <button
                 onClick={() => setSidebarCollapsed(!sidebarCollapsed)}
-                className="p-1.5 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
+                className="p-1.5 rounded-lg hover:surface transition-colors"
               >
-                <List className="h-4 w-4 text-gray-600 dark:text-gray-400" />
+                <LayoutGrid className="h-4 w-4 text-[rgb(var(--foreground-muted))]" />
               </button>
 
-              <div className="h-6 w-px bg-gray-200 dark:bg-gray-800" />
+              <div className="h-5 w-px bg-[rgb(var(--border))]" />
 
               <div>
-                <div className="text-sm text-gray-900 dark:text-gray-100 font-semibold">
+                <div className="text-sm text-[rgb(var(--foreground))] font-semibold">
                   {workflowName}
                 </div>
-                <div className="text-[10px] text-gray-500">
+                <div className="text-[10px] text-[rgb(var(--foreground-subtle))]">
                   {steps.length} {steps.length === 1 ? "step" : "steps"}
                 </div>
               </div>
@@ -599,21 +582,26 @@ export default function BuilderPage() {
             <div className="flex items-center gap-2">
               <button
                 onClick={toggleTheme}
-                className="p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
+                className="p-2 rounded-lg hover:surface transition-colors"
+                title={
+                  theme === "dark"
+                    ? "Switch to light mode"
+                    : "Switch to dark mode"
+                }
               >
                 {theme === "dark" ? (
-                  <Sun className="h-4 w-4 text-gray-600 dark:text-gray-400" />
+                  <Sun className="h-4 w-4 text-[rgb(var(--foreground-muted))]" />
                 ) : (
-                  <Moon className="h-4 w-4 text-gray-600 dark:text-gray-400" />
+                  <Moon className="h-4 w-4 text-[rgb(var(--foreground-muted))]" />
                 )}
               </button>
 
-              <div className="h-6 w-px bg-gray-200 dark:bg-gray-800" />
+              <div className="h-5 w-px bg-[rgb(var(--border))]" />
 
               <Button
                 size="sm"
                 variant="outline"
-                className="h-8 rounded-lg border-gray-200 dark:border-gray-700 bg-transparent hover:bg-gray-100 dark:hover:bg-gray-800"
+                className="h-8 rounded-lg border-[rgb(var(--border))] bg-transparent hover:surface"
                 onClick={() => setShowMonitor(true)}
               >
                 <Activity className="mr-1.5 h-3.5 w-3.5" />
@@ -623,7 +611,7 @@ export default function BuilderPage() {
               <Button
                 size="sm"
                 variant="outline"
-                className="h-8 rounded-lg border-gray-200 dark:border-gray-700 bg-transparent hover:bg-gray-100 dark:hover:bg-gray-800"
+                className="h-8 rounded-lg border-[rgb(var(--border))] bg-transparent hover:surface"
                 onClick={() => setShowAIGenerator(true)}
               >
                 <Wand2 className="mr-1.5 h-3.5 w-3.5" />
@@ -633,7 +621,7 @@ export default function BuilderPage() {
               <Button
                 variant="outline"
                 size="sm"
-                className="h-8 rounded-lg border-gray-200 dark:border-gray-700 bg-transparent hover:bg-gray-100 dark:hover:bg-gray-800"
+                className="h-8 rounded-lg border-[rgb(var(--border))] bg-transparent hover:surface"
                 onClick={handleSave}
               >
                 <Save className="mr-1.5 h-3.5 w-3.5" />
@@ -642,7 +630,7 @@ export default function BuilderPage() {
 
               <Button
                 size="sm"
-                className="h-8 rounded-lg bg-blue-600 hover:bg-blue-700 text-white"
+                className="h-8 rounded-lg bg-[rgb(var(--primary))] hover:bg-[rgb(var(--primary-hover))] text-[rgb(var(--primary-foreground))]"
                 onClick={handleRun}
                 disabled={steps.length === 0}
               >
@@ -652,7 +640,7 @@ export default function BuilderPage() {
             </div>
           </motion.header>
 
-          <div className="flex-1 overflow-auto bg-gray-50 dark:bg-gray-950 p-6">
+          <div className="flex-1 overflow-auto bg-[rgb(var(--background))] p-6">
             <div className="max-w-4xl mx-auto">
               {steps.length === 0 ? (
                 <motion.div
@@ -660,20 +648,20 @@ export default function BuilderPage() {
                   animate={{ opacity: 1, y: 0 }}
                   className="text-center py-24"
                 >
-                  <div className="inline-flex items-center justify-center w-20 h-20 rounded-2xl bg-gradient-to-br from-blue-50 to-blue-100 dark:from-blue-950/30 dark:to-blue-900/20 border border-gray-200 dark:border-gray-800 mb-6">
-                    <List className="h-10 w-10 text-blue-600 dark:text-blue-500" />
+                  <div className="inline-flex items-center justify-center w-20 h-20 rounded-2xl surface-elevated border border-[rgb(var(--border))] mb-6">
+                    <LayoutGrid className="h-10 w-10 text-[rgb(var(--primary))]" />
                   </div>
-                  <h2 className="text-2xl font-bold text-gray-900 dark:text-gray-100 mb-2">
+                  <h2 className="text-2xl font-bold text-[rgb(var(--foreground))] mb-2">
                     Build Your Workflow
                   </h2>
-                  <p className="text-gray-600 dark:text-gray-400 mb-6 max-w-md mx-auto">
+                  <p className="text-[rgb(var(--foreground-muted))] mb-6 max-w-md mx-auto">
                     Add steps from the library or use AI to generate a complete
                     workflow
                   </p>
                   <div className="flex items-center justify-center gap-3">
                     <Button
                       onClick={() => setShowAIGenerator(true)}
-                      className="bg-blue-600 hover:bg-blue-700"
+                      className="bg-[rgb(var(--primary))] hover:bg-[rgb(var(--primary-hover))]"
                     >
                       <Wand2 className="mr-2 h-4 w-4" />
                       Generate with AI
@@ -681,7 +669,7 @@ export default function BuilderPage() {
                     <Button
                       variant="outline"
                       onClick={() => setSidebarCollapsed(false)}
-                      className="border-gray-200 dark:border-gray-700"
+                      className="border-[rgb(var(--border))]"
                     >
                       <Plus className="mr-2 h-4 w-4" />
                       Add Steps Manually
@@ -692,10 +680,10 @@ export default function BuilderPage() {
                 <div className="space-y-4">
                   <div className="flex items-center justify-between mb-6">
                     <div>
-                      <h2 className="text-lg font-bold text-gray-900 dark:text-gray-100">
+                      <h2 className="text-lg font-bold text-[rgb(var(--foreground))]">
                         Workflow Timeline
                       </h2>
-                      <p className="text-xs text-gray-500 mt-1">
+                      <p className="text-xs text-[rgb(var(--foreground-subtle))] mt-1">
                         Steps execute sequentially from top to bottom
                       </p>
                     </div>
@@ -728,7 +716,7 @@ export default function BuilderPage() {
                     onClick={() => setSidebarCollapsed(false)}
                     whileHover={{ scale: 1.01 }}
                     whileTap={{ scale: 0.99 }}
-                    className="w-full p-4 rounded-xl border-2 border-dashed border-gray-300 dark:border-gray-700 hover:border-gray-400 dark:hover:border-gray-600 bg-white dark:bg-gray-900 hover:bg-gray-50 dark:hover:bg-gray-800 transition-all flex items-center justify-center gap-2 text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-100"
+                    className="w-full p-4 rounded-lg border-2 border-dashed border-[rgb(var(--border))] hover:border-[rgb(var(--primary))] surface-elevated hover:surface transition-all flex items-center justify-center gap-2 text-[rgb(var(--foreground-muted))] hover:text-[rgb(var(--primary))]"
                   >
                     <Plus className="h-4 w-4" />
                     <span className="text-sm font-medium">Add Step</span>
@@ -757,7 +745,7 @@ export default function BuilderPage() {
 
       {/* Run Dashboard */}
       <motion.div
-        className="absolute inset-0 bg-gray-50 dark:bg-gray-950"
+        className="absolute inset-0 bg-[rgb(var(--background))]"
         initial={{ x: "100%" }}
         animate={{ x: showDashboard ? "0%" : "100%" }}
         transition={{ type: "spring", stiffness: 300, damping: 30 }}
@@ -769,7 +757,7 @@ export default function BuilderPage() {
 
       {/* Monitor Dashboard */}
       <motion.div
-        className="absolute inset-0 bg-gray-50 dark:bg-gray-950"
+        className="absolute inset-0 bg-[rgb(var(--background))]"
         initial={{ x: "100%" }}
         animate={{ x: showMonitor ? "0%" : "100%" }}
         transition={{ type: "spring", stiffness: 300, damping: 30 }}
