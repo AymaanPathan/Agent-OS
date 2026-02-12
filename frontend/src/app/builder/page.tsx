@@ -21,6 +21,7 @@ import {
   Wrench,
   ShieldCheck,
   Users,
+  Settings,
 } from "lucide-react";
 import {
   DndContext,
@@ -53,6 +54,7 @@ import React from "react";
 import StepConfigPanel from "@/components/StepConfigPanel";
 import { useTheme } from "@/components/ThemeProvider";
 import MonitorDashboard from "@/components/MonitorDashboard";
+import { DockerConnectionDialog } from "@/components/DockerConnectionDialog";
 
 const getWorkspaceId = () => {
   if (typeof window === "undefined") return "";
@@ -203,6 +205,7 @@ function TimelineStep({ step, index, onClick, selected }: any) {
 export default function BuilderPage() {
   const { theme, toggleTheme } = useTheme();
   const [selectedStep, setSelectedStep] = useState<any | null>(null);
+  const [showDockerDialog, setShowDockerDialog] = useState(false);
   const [activeRunId, setActiveRunId] = useState<string | null>(null);
   const [showDashboard, setShowDashboard] = useState(false);
   const [showMonitor, setShowMonitor] = useState(false);
@@ -567,6 +570,20 @@ export default function BuilderPage() {
               </button>
 
               <div className="h-5 w-px bg-[rgb(var(--border))]" />
+
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() => setShowDockerDialog(true)}
+              >
+                <Settings className="mr-1.5 h-3.5 w-3.5" />
+                Docker Settings
+              </Button>
+
+              <DockerConnectionDialog
+                open={showDockerDialog}
+                onOpenChange={setShowDockerDialog}
+              />
 
               <Button
                 size="sm"
