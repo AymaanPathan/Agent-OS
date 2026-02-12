@@ -1,243 +1,145 @@
 import { Server, Socket } from "socket.io";
 import { activeMonitors } from "../routes/MonitorApi.routes";
-import { executeMCPTool } from "../engine/tools/mcpTools.registry";
-import { runAILogAnalysis } from "../engine/tools/aiAnalyzer.tool";
+import { setupMonitorSocketBridge } from "./monitorSocketBridge";
 
+/**
+ * Setup Socket.IO handlers for monitor functionality
+ */
 export function setupMonitorSocketHandlers(io: Server) {
-  io.on("connection", (socket: Socket) => {
-    console.log(`🔌 [Monitor Socket] Client connected: ${socket.id}`);
+  console.log("🔌 [Monitor Socket] Setting up monitor socket handlers");
 
-    // Join monitor session
+  io.on("connection", (socket: Socket) => {
+    // Handle join-monitor event
     socket.on("join-monitor", (sessionId: string) => {
-      socket.join(`monitor-${sessionId}`);
       console.log(
-        `📥 [Monitor Socket] Client ${socket.id} joined monitor: ${sessionId}`,
+        `📥 [Monitor Socket] Client ${socket.id} joining monitor session: ${sessionId}`,
       );
 
-      // Setup event forwarding for this monitor
-      const monitor = activeMonitors.get(sessionId);
-      if (monitor) {
-        setupMonitorEventForwarding(monitor, sessionId, io);
-      }
+      socket.join(sessionId);
 
+      // Send confirmation
       socket.emit("monitor-joined", {
         sessionId,
-        message: "Successfully joined monitoring session",
+        timestamp: new Date().toISOString(),
       });
+
+      console.log(`✅ [Monitor Socket] Client joined session: ${sessionId}`);
     });
 
-    // Leave monitor session
+    // Handle leave-monitor event
     socket.on("leave-monitor", (sessionId: string) => {
-      socket.leave(`monitor-${sessionId}`);
       console.log(
-        `📤 [Monitor Socket] Client ${socket.id} left monitor: ${sessionId}`,
+        `📤 [Monitor Socket] Client ${socket.id} leaving session: ${sessionId}`,
       );
+      socket.leave(sessionId);
     });
 
-    // AI Fix request
+    // Handle AI fix container request
     socket.on(
       "ai-fix-container",
       async (data: { sessionId: string; containerName: string }) => {
-        const { sessionId, containerName } = data;
-
-        if (
-          !containerName ||
-          containerName === "undefined" ||
-          typeof containerName !== "string"
-        ) {
-          console.error(
-            "❌ [Monitor Socket] Invalid container name:",
-            containerName,
-          );
-          socket.emit("ai-fix-result", {
-            sessionId,
-            containerName: containerName || "unknown",
-            success: false,
-            error: "Invalid container name",
-          });
-          return;
-        }
-
-        console.log(`🤖 [Monitor Socket] AI fix request for: ${containerName}`);
-
-        const startTime = Date.now();
+        console.log(
+          `🤖 [Monitor Socket] AI fix requested for container: ${data.containerName}`,
+        );
 
         try {
-          // Fetch logs
-          const logsResult = await executeMCPTool("tool.dockerLogs", {
-            containerName,
-            tail: 200,
-            timestamps: true,
-          });
+          // Get the monitor instance
+          const monitor = activeMonitors.get(data.sessionId);
 
-          if (!logsResult.success || !logsResult.logs) {
-            throw new Error("Failed to fetch logs");
+          if (!monitor) {
+            socket.emit("ai-fix-result", {
+              success: false,
+              message: "Monitor session not found",
+              containerName: data.containerName,
+            });
+            return;
           }
 
-          // Analyze with AI
-          io.to(`monitor-${sessionId}`).emit("ai-fix-progress", {
-            sessionId,
-            containerName,
+          // Emit progress: analyzing
+          socket.emit("ai-fix-progress", {
             stage: "analyzing",
-            message: "Analyzing logs with AI...",
+            containerName: data.containerName,
           });
 
-          const analysisResult = await runAILogAnalysis({
+          // Import AI analysis tool
+          const { runAILogAnalysis } =
+            await import("../engine/tools/aiAnalyzer.tool");
+          const { runDockerLogs } = await import("../engine/tools/docker.tool");
+          const { runDockerRestart } =
+            await import("../engine/tools/docker.tool");
+
+          // Step 1: Get container logs
+          const logsResult = await runDockerLogs({
+            containerName: data.containerName,
+            tail: 200,
+          });
+
+          if (!logsResult.success) {
+            throw new Error("Failed to fetch container logs");
+          }
+
+          // Step 2: Run AI analysis
+          const analysis = await runAILogAnalysis({
             logs: logsResult.logs,
-            containerNames: [containerName],
-            context: `Analyzing container ${containerName} for automated recovery`,
+            containerNames: [data.containerName],
+            context: "Container health recovery analysis",
           });
 
-          // Send analysis results
-          io.to(`monitor-${sessionId}`).emit("ai-fix-progress", {
-            sessionId,
-            containerName,
+          // Emit analysis complete
+          socket.emit("ai-fix-progress", {
             stage: "analysis_complete",
+            containerName: data.containerName,
             analysis: {
-              summary: analysisResult.summary,
-              rootCause: analysisResult.rootCause,
-              confidence: analysisResult.confidence,
-              suggestedFixes: analysisResult.suggestedFixes,
+              summary: analysis.summary,
+              rootCause: analysis.rootCause,
+              confidence: analysis.confidence,
+              suggestedFixes: analysis.suggestedFixes,
             },
           });
 
-          // Determine if auto-fix is possible
-          const canAutoFix =
-            analysisResult.success && analysisResult.confidence !== "low";
-          const restartRecommended =
-            analysisResult.errorCategory === "crash" ||
-            analysisResult.errorCategory === "memory_leak" ||
-            analysisResult.suggestedFixes.some(
-              (fix: string) =>
-                fix.toLowerCase().includes("restart") ||
-                fix.toLowerCase().includes("reboot"),
-            );
-
-          if (!canAutoFix) {
-            io.to(`monitor-${sessionId}`).emit("ai-fix-result", {
-              sessionId,
-              containerName,
-              success: true,
-              message: `AI Analysis Complete (${analysisResult.confidence} confidence)`,
-              analysis: analysisResult,
-              action: "analysis_only",
-              duration: Date.now() - startTime,
-            });
-            return;
-          }
-
-          if (!restartRecommended) {
-            io.to(`monitor-${sessionId}`).emit("ai-fix-result", {
-              sessionId,
-              containerName,
-              success: true,
-              message: `AI Recommendations (${analysisResult.confidence} confidence)`,
-              analysis: analysisResult,
-              action: "manual_steps_provided",
-              manualSteps: analysisResult.suggestedFixes,
-              duration: Date.now() - startTime,
-            });
-            return;
-          }
-
-          // Auto-fix with restart
-          io.to(`monitor-${sessionId}`).emit("ai-fix-progress", {
-            sessionId,
-            containerName,
+          // Step 3: Apply fix (restart for now - you can enhance this)
+          socket.emit("ai-fix-progress", {
             stage: "applying_fix",
+            containerName: data.containerName,
             message: "Restarting container...",
           });
 
-          const restartResult = await executeMCPTool("tool.dockerRestart", {
-            containerName,
+          const restartResult = await runDockerRestart({
+            containerName: data.containerName,
             timeout: 10,
           });
 
-          if (restartResult.success) {
-            // Wait for stabilization
-            await new Promise((resolve) => setTimeout(resolve, 3000));
+          // Step 4: Emit final result
+          socket.emit("ai-fix-result", {
+            success: restartResult.success,
+            containerName: data.containerName,
+            message: restartResult.success
+              ? "Container restarted successfully"
+              : "Container restart failed",
+            analysis,
+            action: "restart",
+          });
 
-            // Verify
-            const verifyLogs = await executeMCPTool("tool.dockerLogs", {
-              containerName,
-              tail: 50,
-              timestamps: true,
-            });
-
-            io.to(`monitor-${sessionId}`).emit("ai-fix-result", {
-              sessionId,
-              containerName,
-              success: true,
-              message: "✅ Container restarted successfully",
-              analysis: analysisResult,
-              action: "container_restarted",
-              verificationLogs: verifyLogs.logs || "Unable to fetch logs",
-              duration: Date.now() - startTime,
-            });
-          } else {
-            throw new Error(
-              `Restart failed: ${restartResult.error || "Unknown error"}`,
-            );
-          }
+          console.log(
+            `✅ [Monitor Socket] AI fix completed for: ${data.containerName}`,
+          );
         } catch (error: any) {
-          console.error(`❌ [Monitor Socket] AI fix error: ${error.message}`);
-          io.to(`monitor-${sessionId}`).emit("ai-fix-result", {
-            sessionId,
-            containerName,
+          console.error(`❌ [Monitor Socket] AI fix error:`, error);
+
+          socket.emit("ai-fix-result", {
             success: false,
-            error: error.message,
-            duration: Date.now() - startTime,
+            containerName: data.containerName,
+            message: `Fix failed: ${error.message}`,
           });
         }
       },
     );
 
+    // Handle disconnect
     socket.on("disconnect", () => {
       console.log(`🔌 [Monitor Socket] Client disconnected: ${socket.id}`);
     });
   });
-}
 
-function setupMonitorEventForwarding(
-  monitor: any,
-  sessionId: string,
-  io: Server,
-) {
-  const room = `monitor-${sessionId}`;
-
-  // Forward check completed events
-  monitor.on("check_completed", (data: any) => {
-    io.to(room).emit("monitor-check-completed", {
-      sessionId,
-      checkNumber: monitor.getState().checkCount,
-      timestamp: new Date().toISOString(),
-      ...data,
-    });
-  });
-
-  // Forward alerts
-  monitor.on("alert", (alert: any) => {
-    io.to(room).emit("monitor-alert", {
-      sessionId,
-      ...alert,
-    });
-  });
-
-  // Forward started event
-  monitor.on("started", (data: any) => {
-    io.to(room).emit("monitor-started", {
-      sessionId,
-      config: data.config,
-      timestamp: new Date().toISOString(),
-    });
-  });
-
-  // Forward stopped event
-  monitor.on("stopped", (data: any) => {
-    io.to(room).emit("monitor-stopped", {
-      sessionId,
-      finalState: data.state,
-      timestamp: new Date().toISOString(),
-    });
-  });
+  console.log("✅ [Monitor Socket] Monitor socket handlers setup complete");
 }

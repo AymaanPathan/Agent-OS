@@ -1,5 +1,7 @@
 import express from "express";
 import { ContinuousMonitor } from "../engine/tools/monitor.tool";
+import { setupMonitorSocketBridge } from "../lib/monitorSocketBridge";
+import { io } from "../index";
 
 const router = express.Router();
 
@@ -11,8 +13,13 @@ router.post("/start", async (req, res) => {
   try {
     const { sessionId, config } = req.body;
 
+    console.log("🟢 [Monitor API] Start request received");
+    console.log("📋 [Monitor API] Session ID:", sessionId);
+    console.log("⚙️ [Monitor API] Config:", config);
+
     // Check if monitor already exists
     if (activeMonitors.has(sessionId)) {
+      console.log("⚠️ [Monitor API] Monitor already running");
       return res.status(400).json({
         success: false,
         error: "Monitor already running for this session",
@@ -29,9 +36,15 @@ router.post("/start", async (req, res) => {
     });
 
     activeMonitors.set(sessionId, monitor);
+    console.log("✅ [Monitor API] Monitor created");
+
+    // ✅ Setup socket bridge BEFORE starting
+    setupMonitorSocketBridge(monitor, sessionId, io);
+    console.log("✅ [Monitor API] Socket bridge setup complete");
 
     // Start monitoring
     await monitor.start();
+    console.log("✅ [Monitor API] Monitor started successfully");
 
     res.json({
       success: true,
@@ -52,8 +65,11 @@ router.post("/stop", async (req, res) => {
   try {
     const { sessionId } = req.body;
 
+    console.log("🔴 [Monitor API] Stop request for session:", sessionId);
+
     const monitor = activeMonitors.get(sessionId);
     if (!monitor) {
+      console.log("⚠️ [Monitor API] Monitor not found");
       return res.status(404).json({
         success: false,
         error: "Monitor not found",
@@ -62,6 +78,7 @@ router.post("/stop", async (req, res) => {
 
     monitor.stop();
     activeMonitors.delete(sessionId);
+    console.log("✅ [Monitor API] Monitor stopped");
 
     res.json({
       success: true,
@@ -117,8 +134,8 @@ router.post("/pause", (req, res) => {
       });
     }
 
-    // Add pause functionality to monitor
-    // This will need to be implemented in monitor.tool.ts
+    // Pause monitoring (stop checks but keep state)
+    monitor.stop();
 
     res.json({
       success: true,
@@ -133,7 +150,7 @@ router.post("/pause", (req, res) => {
 });
 
 // Resume monitoring
-router.post("/resume", (req, res) => {
+router.post("/resume", async (req, res) => {
   try {
     const { sessionId } = req.body;
 
@@ -145,7 +162,8 @@ router.post("/resume", (req, res) => {
       });
     }
 
-    // Add resume functionality
+    // Resume monitoring
+    await monitor.start();
 
     res.json({
       success: true,
