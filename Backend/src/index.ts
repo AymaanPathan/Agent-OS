@@ -10,12 +10,12 @@ import mongoose from "mongoose";
 import workflowRoutes from "./routes/workflow.routes";
 import runRoutes from "./routes/run.routes";
 import toolRoutes from "./routes/tool.route";
+import { monitorApiRouter } from "./routes/MonitorApi.routes";
 
 // Import socket handlers
 import { setupSocketHandlers } from "./lib/socket";
+import { setupMonitorSocketHandlers } from "./lib/monitor-socket-handler";
 import { handleMcp } from "./mcp/health-mcp/mcp.route";
-
-// Load environment variables
 
 const app = express();
 const httpServer = createServer(app);
@@ -39,8 +39,6 @@ app.use(
 );
 
 // ⚠️ CRITICAL: MCP endpoint MUST come before express.json() middleware
-// The StreamableHTTPServerTransport reads the raw stream directly
-// DO NOT apply any body parsing middleware to this route
 app.post("/mcp", handleMcp);
 
 // JSON parsing middleware for all other routes
@@ -60,6 +58,7 @@ app.get("/health", (req, res) => {
 app.use("/api/workflows", workflowRoutes);
 app.use("/api/runs", runRoutes);
 app.use("/api/tools", toolRoutes);
+app.use("/api/monitor", monitorApiRouter); // ✅ Add monitor routes
 
 // Error handling middleware
 app.use(
@@ -79,6 +78,7 @@ app.use(
 
 // Setup Socket.IO handlers
 setupSocketHandlers(io);
+setupMonitorSocketHandlers(io); // ✅ Add monitor socket handlers
 
 // Database connection
 const MONGODB_URI =
@@ -106,6 +106,7 @@ httpServer.listen(PORT, () => {
 ║   Port: ${PORT}                                  ║
 ║   Environment: ${process.env.NODE_ENV || "development"}                  ║
 ║   MongoDB: ${MONGODB_URI.includes("localhost") ? "Local" : "Remote"}                             ║
+║   Monitor: Enabled                            ║
 ║                                               ║
 ╚═══════════════════════════════════════════════╝
   `);

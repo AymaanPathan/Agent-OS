@@ -32,7 +32,6 @@ import {
   ArrowRight,
 } from "lucide-react";
 import { io, Socket } from "socket.io-client";
-import { MonitorDashboard } from "../nodes/MonitorDashboardPanel";
 
 // ====================================
 // 🎯 TYPES
@@ -874,10 +873,6 @@ export default function RunDashboard({
           </motion.div>
         ) : (
           <div className="max-w-4xl mx-auto space-y-3">
-            {/* ✅ ADD THIS: Monitor Dashboard Panel */}
-            <MonitorDashboard socket={socketRef.current} runId={runId} />
-
-            {/* Existing node execution cards */}
             {sortedNodes.map((node, index) => (
               <NodeExecutionCard key={index} node={node} index={index} />
             ))}

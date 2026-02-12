@@ -95,12 +95,4 @@ export const nodesLibrary: NodeDefinition[] = [
     desc: "Analyze logs with AI confidence-based routing",
     category: "Agents",
   },
-
-  // MONITOR
-  {
-    type: "monitor.continuous",
-    label: "AI Monitor & Auto-Fix",
-    desc: "Advanced monitoring with AI-powered auto-healing",
-    category: "Tools",
-  },
 ];

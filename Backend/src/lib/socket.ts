@@ -1,14 +1,10 @@
 import { Server, Socket } from "socket.io";
 import { sendApproval } from "../workflows/executeWorkflow";
-import { setupAIFixHandler } from "./monitorSocketBridge";
 
 let ioInstance: Server;
 
 export function setupSocketHandlers(io: Server) {
   ioInstance = io;
-
-  // Setup AI Fix Handler
-  setupAIFixHandler(io);
 
   io.on("connection", (socket: Socket) => {
     console.log(`🔌 Client connected: ${socket.id}`);
@@ -51,26 +47,6 @@ export function setupSocketHandlers(io: Server) {
             runId: data.runId,
           });
         }
-      },
-    );
-
-    // Monitor control commands
-    socket.on("monitor_pause", (data: { runId: string; monitorId: string }) => {
-      console.log(`⏸️ Monitor pause requested:`, data);
-      io.to(data.runId).emit("monitor_paused", {
-        monitorId: data.monitorId,
-        timestamp: new Date().toISOString(),
-      });
-    });
-
-    socket.on(
-      "monitor_resume",
-      (data: { runId: string; monitorId: string }) => {
-        console.log(`▶️ Monitor resume requested:`, data);
-        io.to(data.runId).emit("monitor_resumed", {
-          monitorId: data.monitorId,
-          timestamp: new Date().toISOString(),
-        });
       },
     );
 
