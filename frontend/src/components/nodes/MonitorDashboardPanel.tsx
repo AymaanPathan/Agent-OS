@@ -157,20 +157,27 @@ export function MonitorDashboard({
         checkCount: data.checkNumber || prev.checkCount + 1,
         lastCheckTime: data.timestamp,
       }));
-
+      console.log("Data", data.result?.containers);
       // Process container data WITH LOGS
       if (data.result?.containers) {
         const containerMetrics = data.result.containers.map((c: any) => {
-          // ✅ FIX: Get container name from the correct field
+          console.log(
+            `📦 Raw container data for ${c.name || c.containerName}:`,
+            c,
+          );
+
           const containerName = c.name || c.containerName;
 
-          console.log(`📦 Processing container: ${containerName}`);
-          console.log(`   Logs available: ${c.logs ? "YES" : "NO"}`);
-          console.log(`   Logs length: ${c.logs?.length || 0}`);
+          // 🔥 FIX: Comprehensive Docker health check
+          const isDockerHealthy =
+            c?.containerRunning === true ||
+            c?.status?.toLowerCase() === "running" ||
+            c?.Status?.toLowerCase() === "running" ||
+            c?.State?.toLowerCase() === "running" ||
+            c?.applicationHealthy === true; // Logical fallback
 
-          // ✅ FIX: Use containerName consistently
-          const isDockerHealthy = c.status === "running";
-          const isAppHealthy = c.applicationHealthy !== false;
+          const isAppHealthy = c?.applicationHealthy !== false;
+
           const severity =
             !isDockerHealthy || !isAppHealthy
               ? "CRITICAL"
@@ -181,9 +188,6 @@ export function MonitorDashboard({
 
           // Build detailed issues array from logs
           const issues: string[] = [];
-          if (!isDockerHealthy) {
-            issues.push(`Container not running (status: ${c.status})`);
-          }
 
           if (!isAppHealthy) {
             // Extract error info from logs if available
@@ -191,8 +195,6 @@ export function MonitorDashboard({
               const logLines = c.logs
                 .split("\n")
                 .filter((line: any) => line.trim());
-              console.log(`   Total log lines: ${logLines.length}`);
-
               const errorLines = logLines
                 .filter(
                   (line: string) =>
@@ -202,8 +204,6 @@ export function MonitorDashboard({
                     line.toLowerCase().includes("fatal"),
                 )
                 .slice(0, 5);
-
-              console.log(`   Error lines found: ${errorLines.length}`);
 
               if (errorLines.length > 0) {
                 issues.push("Application errors detected:");
@@ -235,7 +235,7 @@ export function MonitorDashboard({
             timestamp: data.timestamp,
             httpHealthStatus: c.httpHealthStatus,
             issues: issues.length > 0 ? issues : undefined,
-            logs: c.logs || "No logs available", // REAL LOGS from backend
+            logs: c.logs || "No logs available",
           };
         });
 
@@ -331,7 +331,7 @@ export function MonitorDashboard({
       socket.off("monitor_stopped");
     };
   }, [socket, soundEnabled, expandedContainer]);
-
+  console.log("stats ", stats);
   // Play alert sound
   const playAlertSound = () => {
     try {
@@ -753,7 +753,7 @@ function ContainerIssueCard({
   isFixing: boolean;
 }) {
   const [copiedLogs, setCopiedLogs] = useState(false);
-
+  console.log(`metrics `, metric);
   const getSeverityConfig = () => {
     switch (metric.severity) {
       case "CRITICAL":
@@ -847,44 +847,46 @@ function ContainerIssueCard({
             <div className="text-zinc-500">Docker</div>
             <div
               className={
-                metric.dockerHealthy ? "text-green-400" : "text-red-400"
+                metric?.httpHealthStatus?.healthy
+                  ? "text-green-400"
+                  : "text-red-400"
               }
             >
-              {metric.dockerHealthy ? "✅ OK" : "❌ Down"}
+              {metric?.httpHealthStatus?.healthy ? "✅ OK" : "❌ Down"}
             </div>
           </div>
           <div>
             <div className="text-zinc-500">App</div>
             <div
               className={
-                metric.applicationHealthy ? "text-green-400" : "text-red-400"
+                metric?.applicationHealthy ? "text-green-400" : "text-red-400"
               }
             >
-              {metric.applicationHealthy ? "✅ OK" : "❌ Fail"}
+              {metric?.applicationHealthy ? "✅ OK" : "❌ Fail"}
             </div>
           </div>
           <div>
             <div className="text-zinc-500">CPU</div>
             <div
               className={
-                parseFloat(metric.cpuPercent) > 80
+                parseFloat(metric?.cpuPercent) > 80
                   ? "text-yellow-400"
                   : "text-green-400"
               }
             >
-              {metric.cpuPercent}
+              {metric?.cpuPercent}
             </div>
           </div>
           <div>
             <div className="text-zinc-500">Mem</div>
             <div
               className={
-                parseFloat(metric.memPercent) > 80
+                parseFloat(metric?.memPercent) > 80
                   ? "text-yellow-400"
                   : "text-green-400"
               }
             >
-              {metric.memPercent}
+              {metric?.memPercent}
             </div>
           </div>
         </div>
@@ -901,14 +903,14 @@ function ContainerIssueCard({
           >
             <div className="p-3 space-y-3">
               {/* Issues List */}
-              {metric.issues && metric.issues.length > 0 && (
+              {metric?.issues && metric?.issues?.length > 0 && (
                 <div>
                   <div className="text-xs font-semibold text-zinc-400 mb-1.5 flex items-center gap-1">
                     <AlertCircle className="h-3 w-3" />
                     Detected Issues
                   </div>
                   <div className="space-y-1 max-h-32 overflow-y-auto rounded-md bg-black/20 p-2 border border-red-500/20">
-                    {metric.issues.map((issue, i) => (
+                    {metric?.issues?.map((issue, i) => (
                       <div
                         key={i}
                         className="text-[10px] text-red-300 font-mono leading-relaxed"
@@ -920,40 +922,40 @@ function ContainerIssueCard({
                 </div>
               )}
               {/* HTTP Health */}
-              {metric.httpHealthStatus && (
+              {metric?.httpHealthStatus && (
                 <div className="rounded-md bg-white/5 p-2 space-y-1">
                   <div className="flex items-center gap-2 text-xs text-zinc-400">
-                    {metric.httpHealthStatus.healthy ? (
+                    {metric?.httpHealthStatus?.healthy ? (
                       <Wifi className="h-3 w-3 text-green-400" />
                     ) : (
                       <WifiOff className="h-3 w-3 text-red-400" />
                     )}
                     <span className="font-medium">HTTP Health</span>
                   </div>
-                  {metric.httpHealthStatus.checkedUrl && (
+                  {metric?.httpHealthStatus?.checkedUrl && (
                     <div className="text-[10px] text-zinc-500">
                       <Globe className="h-2.5 w-2.5 inline mr-1" />
-                      {metric.httpHealthStatus.checkedUrl}
+                      {metric?.httpHealthStatus?.checkedUrl}
                     </div>
                   )}
-                  {metric.httpHealthStatus.statusCode && (
+                  {metric?.httpHealthStatus?.statusCode && (
                     <div className="flex items-center gap-2 text-[10px]">
                       <span className="text-zinc-500">Status:</span>
                       <span
                         className={
-                          metric.httpHealthStatus.statusCode >= 200 &&
-                          metric.httpHealthStatus.statusCode < 300
+                          metric?.httpHealthStatus?.statusCode >= 200 &&
+                          metric?.httpHealthStatus?.statusCode < 300
                             ? "text-green-400"
                             : "text-red-400"
                         }
                       >
-                        {metric.httpHealthStatus.statusCode}
+                        {metric?.httpHealthStatus?.statusCode}
                       </span>
-                      {metric.httpHealthStatus.responseTime && (
+                      {metric?.httpHealthStatus?.responseTime && (
                         <>
                           <span className="text-zinc-600">•</span>
                           <span className="text-zinc-400">
-                            {metric.httpHealthStatus.responseTime}ms
+                            {metric?.httpHealthStatus?.responseTime}ms
                           </span>
                         </>
                       )}
@@ -991,7 +993,7 @@ function ContainerIssueCard({
                   <div className="rounded-md bg-black/60 border border-zinc-800 p-3 max-h-64 overflow-y-auto">
                     {hasLogs ? (
                       <pre className="text-[9px] font-mono text-zinc-300 whitespace-pre-wrap leading-relaxed">
-                        {metric.logs}
+                        {metric?.logs}
                       </pre>
                     ) : (
                       <div className="text-xs text-zinc-500 italic text-center py-4">
@@ -1006,15 +1008,15 @@ function ContainerIssueCard({
                 onClick={() => {
                   console.log(
                     `🤖 [AI Fix Button] Clicked for container:`,
-                    metric.containerName,
+                    metric?.containerName,
                   );
-                  if (!metric.containerName) {
+                  if (!metric?.containerName) {
                     console.error(
                       "❌ [AI Fix Button] Container name is undefined!",
                     );
                     return;
                   }
-                  onAIFix(metric.containerName);
+                  onAIFix(metric?.containerName);
                 }}
                 disabled={isFixing}
                 className={`w-full rounded-lg px-3 py-2.5 font-medium text-xs transition-all flex items-center justify-center gap-2 ${

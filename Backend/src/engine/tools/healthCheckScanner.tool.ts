@@ -1,11 +1,11 @@
+import axios from "axios";
 import { exec } from "child_process";
 import { promisify } from "util";
-import axios from "axios";
 
 const execAsync = promisify(exec);
 
 // ====================================
-// 🏥 HEALTH CHECK SCANNER (FIXED)
+// 🏥 HEALTH CHECK SCANNER
 // ====================================
 
 export type HealthCheckScannerConfig = {
@@ -16,19 +16,21 @@ export type HealthCheckScannerConfig = {
 
 export type ContainerHealthReport = {
   containerName: string;
-  dockerHealthy: boolean;
-  applicationHealthy: boolean;
+  containerRunning: boolean;
+  containerStatus: string;
+  containerHealth?: string;
   httpHealthStatus?: {
     checked: boolean;
     healthy: boolean;
     statusCode?: number;
     responseTime?: number;
     checkedUrl?: string;
+    healthDetails?: any;
     error?: string;
   };
-  ports: number[];
-  status: string;
-  logs?: string;
+  applicationHealthy: boolean;
+  overallHealthy: boolean;
+  issues: string[];
 };
 
 export type HealthCheckScannerResult = {
@@ -37,117 +39,82 @@ export type HealthCheckScannerResult = {
   healthyCount: number;
   unhealthyCount: number;
   unhealthyContainers: string[];
+  applicationUnhealthyContainers: string[];
   reports: ContainerHealthReport[];
   timestamp: string;
   error?: string;
 };
 
 /**
- * Get exposed ports for a container
+ * Check if application reports itself as unhealthy based on response body
  */
-async function getContainerPorts(containerName: string): Promise<number[]> {
-  try {
-    const { stdout } = await execAsync(`docker inspect ${containerName}`);
-    const containers = JSON.parse(stdout);
-
-    if (!containers || containers.length === 0) {
-      return [];
-    }
-
-    const container = containers[0];
-    const ports: number[] = [];
-
-    if (container.NetworkSettings?.Ports) {
-      Object.entries(container.NetworkSettings.Ports).forEach(
-        ([, hostBindings]: [string, any]) => {
-          if (hostBindings && Array.isArray(hostBindings)) {
-            hostBindings.forEach((binding: any) => {
-              if (binding.HostPort) {
-                ports.push(parseInt(binding.HostPort));
-              }
-            });
-          }
-        },
-      );
-    }
-
-    console.log(`📊 [HealthScanner] Ports for ${containerName}:`, ports);
-    return ports;
-  } catch (err) {
-    console.error(
-      `❌ [HealthScanner] Failed to get ports for ${containerName}:`,
-      err,
-    );
-    return [];
-  }
-}
-
-/**
- * Check if container is running via Docker
- */
-async function isContainerRunning(containerName: string): Promise<boolean> {
-  try {
-    const { stdout } = await execAsync(
-      `docker inspect -f '{{.State.Running}}' ${containerName}`,
-    );
-    const isRunning = stdout.trim() === "true";
-    console.log(`🐳 [HealthScanner] ${containerName} running:`, isRunning);
-    return isRunning;
-  } catch (err) {
-    console.error(
-      `❌ [HealthScanner] Failed to check if ${containerName} is running:`,
-      err,
-    );
+function isApplicationUnhealthy(responseData: any): boolean {
+  if (!responseData || typeof responseData !== "object") {
     return false;
   }
-}
 
-/**
- * Get container status
- */
-async function getContainerStatus(containerName: string): Promise<string> {
-  try {
-    const { stdout } = await execAsync(
-      `docker inspect -f '{{.State.Status}}' ${containerName}`,
-    );
-    return stdout.trim();
-  } catch (err) {
-    return "unknown";
-  }
-}
+  // Check various common health status fields
+  const statusField =
+    responseData.status || responseData.health || responseData.state;
 
-/**
- * Fetch container logs
- */
-async function getContainerLogs(
-  containerName: string,
-  tail: number = 100,
-): Promise<string> {
-  try {
-    const { stdout, stderr } = await execAsync(
-      `docker logs --tail ${tail} ${containerName}`,
-    );
-    const logs = stdout || stderr || "";
-    console.log(
-      `📋 [HealthScanner] Fetched ${logs.split("\n").length} lines of logs for ${containerName}`,
-    );
-    return logs;
-  } catch (err: any) {
-    console.error(
-      `❌ [HealthScanner] Failed to fetch logs for ${containerName}:`,
-      err.message,
-    );
-    return `Failed to fetch logs: ${err.message}`;
+  if (statusField) {
+    const statusStr = String(statusField).toLowerCase();
+
+    // 🔥 CRITICAL: Detect unhealthy indicators
+    const unhealthyIndicators = [
+      "unhealthy",
+      "down",
+      "error",
+      "failed",
+      "failing",
+      "degraded",
+      "critical",
+      "unavailable",
+    ];
+
+    for (const indicator of unhealthyIndicators) {
+      if (statusStr.includes(indicator)) {
+        console.log(
+          `🚨 [HealthCheck] Detected unhealthy indicator: ${indicator} in status: ${statusStr}`,
+        );
+        return true;
+      }
+    }
   }
+
+  // Check for error field
+  if (responseData.error || responseData.errors) {
+    console.log(`🚨 [HealthCheck] Found error field in response`);
+    return true;
+  }
+
+  // Check for failed checks
+  if (responseData.checks && Array.isArray(responseData.checks)) {
+    const failedChecks = responseData.checks.filter((check: any) => {
+      const checkStatus = String(check.status || "").toLowerCase();
+      return (
+        checkStatus === "failed" ||
+        checkStatus === "unhealthy" ||
+        checkStatus === "down"
+      );
+    });
+
+    if (failedChecks.length > 0) {
+      console.log(
+        `🚨 [HealthCheck] Found ${failedChecks.length} failed health checks`,
+      );
+      return true;
+    }
+  }
+
+  return false;
 }
 
 /**
  * Perform HTTP health check on a container
- * FIXED: Better error handling and health determination
  */
-async function checkContainerHTTPHealth(
+async function checkContainerHttpHealth(
   containerName: string,
-  ports: number[],
   timeout: number = 3000,
 ): Promise<{
   checked: boolean;
@@ -155,147 +122,213 @@ async function checkContainerHTTPHealth(
   statusCode?: number;
   responseTime?: number;
   checkedUrl?: string;
+  healthDetails?: any;
   error?: string;
 }> {
-  if (ports.length === 0) {
+  try {
+    // Get container inspection data
+    const { stdout: inspectOut } = await execAsync(
+      `docker inspect ${containerName}`,
+    );
+    const containers = JSON.parse(inspectOut);
+
+    if (!containers || containers.length === 0) {
+      console.log(`❌ [HealthCheck] Container ${containerName} not found`);
+      return { checked: false, healthy: false, error: "Container not found" };
+    }
+
+    const container = containers[0];
+
+    // 🔥 FIX: Case-insensitive status check
+    const containerStatus = (container.State?.Status || "").toLowerCase();
+    if (containerStatus !== "running") {
+      console.log(
+        `❌ [HealthCheck] Container ${containerName} not running (status: ${container.State?.Status})`,
+      );
+      return { checked: false, healthy: false, error: "Container not running" };
+    }
+
+    // Extract exposed ports - MORE COMPREHENSIVE
+    const ports: number[] = [];
+
+    // Method 1: Check NetworkSettings.Ports
+    if (container.NetworkSettings?.Ports) {
+      console.log(
+        `🔍 [HealthCheck] ${containerName} - Ports config:`,
+        container.NetworkSettings.Ports,
+      );
+
+      Object.entries(container.NetworkSettings.Ports).forEach(
+        ([containerPort, hostBindings]: [string, any]) => {
+          console.log(
+            `  📌 Container port: ${containerPort}, bindings:`,
+            hostBindings,
+          );
+
+          if (hostBindings && Array.isArray(hostBindings)) {
+            hostBindings.forEach((binding: any) => {
+              if (binding.HostPort) {
+                const port = parseInt(binding.HostPort);
+                ports.push(port);
+                console.log(`  ✅ Found host port: ${port}`);
+              }
+            });
+          }
+        },
+      );
+    }
+
+    // Method 2: Check Config.ExposedPorts as fallback
+    if (ports.length === 0 && container.Config?.ExposedPorts) {
+      console.log(
+        `🔍 [HealthCheck] ${containerName} - Checking ExposedPorts:`,
+        container.Config.ExposedPorts,
+      );
+
+      Object.keys(container.Config.ExposedPorts).forEach((portSpec) => {
+        const portMatch = portSpec.match(/^(\d+)/);
+        if (portMatch) {
+          const port = parseInt(portMatch[1]);
+          ports.push(port);
+          console.log(`  ✅ Found exposed port: ${port}`);
+        }
+      });
+    }
+
+    if (ports.length === 0) {
+      console.log(`⚠️ [HealthCheck] No ports found for ${containerName}`);
+      console.log(
+        `   NetworkSettings.Ports:`,
+        container.NetworkSettings?.Ports,
+      );
+      console.log(`   Config.ExposedPorts:`, container.Config?.ExposedPorts);
+      return {
+        checked: false,
+        healthy: false,
+        error: "No exposed ports found",
+      };
+    }
+
+    console.log(`🔍 [HealthCheck] ${containerName} - Will check ports:`, ports);
+
+    // Try common health check paths
+    const healthPaths = ["/health", "/healthz", "/api/health", "/"];
+    let lastError = "";
+
+    for (const port of ports) {
+      for (const path of healthPaths) {
+        const url = `http://localhost:${port}${path}`;
+
+        try {
+          console.log(`🌐 [HealthCheck] Attempting: ${url}`);
+
+          const startTime = Date.now();
+          const response = await axios.get(url, {
+            timeout,
+            validateStatus: () => true, // Don't throw on any status
+            headers: {
+              "User-Agent": "HealthCheckScanner/1.0",
+            },
+          });
+          const responseTime = Date.now() - startTime;
+
+          console.log(
+            `📊 [HealthCheck] ${containerName} - ${url} - Status: ${response.status}`,
+          );
+          console.log(`📊 [HealthCheck] Response type:`, typeof response.data);
+          console.log(
+            `📊 [HealthCheck] Response data:`,
+            JSON.stringify(response.data),
+          );
+
+          // Check if HTTP status is successful
+          const httpHealthy = response.status >= 200 && response.status < 300;
+
+          // 🔥 CRITICAL: Check application-level health from response body
+          const applicationUnhealthy = isApplicationUnhealthy(response.data);
+
+          console.log(
+            `📊 [HealthCheck] ${containerName} - HTTP healthy: ${httpHealthy}, App unhealthy: ${applicationUnhealthy}`,
+          );
+
+          return {
+            checked: true,
+            healthy: httpHealthy && !applicationUnhealthy, // Both HTTP and app must be healthy
+            statusCode: response.status,
+            responseTime,
+            checkedUrl: url,
+            healthDetails: response.data,
+          };
+        } catch (err) {
+          lastError = (err as Error).message;
+          console.log(`⚠️ [HealthCheck] Failed to check ${url}:`, lastError);
+          continue; // Try next path
+        }
+      }
+    }
+
+    // No successful health check
     console.log(
-      `⚠️ [HealthScanner] ${containerName} has no exposed ports, skipping HTTP check`,
+      `❌ [HealthCheck] All health checks failed for ${containerName}`,
     );
     return {
       checked: false,
-      healthy: true, // ✅ FIX: No ports = healthy (not an error)
+      healthy: false,
+      error: lastError || "All health check attempts failed",
+    };
+  } catch (err) {
+    const errorMsg = (err as Error).message;
+    console.error(
+      `❌ [HealthCheck] Error checking ${containerName}:`,
+      errorMsg,
+    );
+    return {
+      checked: false,
+      healthy: false,
+      error: errorMsg,
     };
   }
-
-  const healthPaths = ["/health", "/healthz", "/"];
-
-  // Try each port
-  for (const port of ports) {
-    for (const path of healthPaths) {
-      const url = `http://localhost:${port}${path}`;
-      const startTime = Date.now();
-
-      try {
-        console.log(`🔍 [HealthScanner] Checking ${url}`);
-
-        const response = await axios.get(url, {
-          timeout,
-          validateStatus: () => true, // Don't throw on any status
-        });
-
-        const responseTime = Date.now() - startTime;
-
-        console.log(
-          `📊 [HealthScanner] ${url} responded with status ${response.status} in ${responseTime}ms`,
-        );
-
-        // ✅ FIX: Check for explicit unhealthy status in response body
-        let isHealthy = response.status >= 200 && response.status < 300;
-
-        if (isHealthy && typeof response.data === "object") {
-          const status = response.data.status || response.data.health;
-          if (status) {
-            const statusStr = String(status).toLowerCase();
-            if (
-              statusStr === "unhealthy" ||
-              statusStr === "down" ||
-              statusStr === "error" ||
-              response.data.ok === false
-            ) {
-              console.log(
-                `⚠️ [HealthScanner] ${url} returned unhealthy status in body:`,
-                response.data,
-              );
-              isHealthy = false;
-            }
-          }
-        }
-
-        return {
-          checked: true,
-          healthy: isHealthy,
-          statusCode: response.status,
-          responseTime,
-          checkedUrl: url,
-        };
-      } catch (err: any) {
-        console.log(
-          `⚠️ [HealthScanner] ${url} failed:`,
-          err.code || err.message,
-        );
-        // Continue to next path/port
-        continue;
-      }
-    }
-  }
-
-  // ✅ FIX: If we couldn't connect to any endpoint, mark as unhealthy
-  console.log(
-    `❌ [HealthScanner] ${containerName} - all health check attempts failed`,
-  );
-  return {
-    checked: true,
-    healthy: false,
-    error: "All health check endpoints failed to respond",
-  };
 }
 
 /**
- * Main health check scanner function
+ * Main scanner function
  */
 export async function runHealthCheckScanner(
   config: HealthCheckScannerConfig,
 ): Promise<HealthCheckScannerResult> {
-  console.log("🏥 [HealthScanner] Starting health check scan");
-  console.log("🏥 [HealthScanner] Config:", JSON.stringify(config, null, 2));
+  console.log("🏥 [HealthCheckScanner] Starting scan");
+  console.log(
+    "🏥 [HealthCheckScanner] Config:",
+    JSON.stringify(config, null, 2),
+  );
 
   try {
     let containerNames: string[] = [];
 
     // Determine which containers to scan
     if (config.scanAllRunning) {
-      console.log("🔍 [HealthScanner] Scanning all running containers");
-
-      const { stdout } = await execAsync(
-        `docker ps --format "{{.Names}}" --filter "status=running"`,
-      );
-
-      containerNames = stdout
-        .trim()
-        .split("\n")
-        .filter((name) => name.length > 0);
-
+      console.log("🔍 [HealthCheckScanner] Scanning all running containers");
+      const { stdout } = await execAsync('docker ps --format "{{.Names}}"');
+      containerNames = stdout.trim().split("\n").filter(Boolean);
       console.log(
-        `📦 [HealthScanner] Found ${containerNames.length} running containers`,
+        `📦 [HealthCheckScanner] Found ${containerNames.length} running containers`,
       );
     } else if (config.containerNames && config.containerNames.length > 0) {
-      // ✅ FIX: Better validation and filtering
       containerNames = config.containerNames
-        .filter((name) => {
-          const isValid =
-            name != null && typeof name === "string" && name.trim().length > 0;
-          if (!isValid) {
-            console.warn(
-              `⚠️ [HealthScanner] Filtered invalid container name:`,
-              name,
-            );
-          }
-          return isValid;
-        })
+        .filter((name) => name && name.trim().length > 0)
         .map((name) => name.trim());
-
       console.log(
-        `📦 [HealthScanner] Scanning ${containerNames.length} specific containers:`,
-        containerNames,
+        `📦 [HealthCheckScanner] Scanning ${containerNames.length} specified containers`,
       );
     } else {
-      console.log("⚠️ [HealthScanner] No containers to scan");
+      console.log("⚠️ [HealthCheckScanner] No containers to scan");
       return {
         success: true,
         scannedCount: 0,
         healthyCount: 0,
         unhealthyCount: 0,
         unhealthyContainers: [],
+        applicationUnhealthyContainers: [],
         reports: [],
         timestamp: new Date().toISOString(),
       };
@@ -303,122 +336,172 @@ export async function runHealthCheckScanner(
 
     const reports: ContainerHealthReport[] = [];
     const unhealthyContainers: string[] = [];
-    let healthyCount = 0;
+    const applicationUnhealthyContainers: string[] = [];
 
     // Scan each container
     for (const containerName of containerNames) {
-      console.log(`\n🔍 [HealthScanner] Scanning: ${containerName}`);
+      console.log(`\n🔍 [HealthCheckScanner] Checking: ${containerName}`);
 
       try {
         // Get container status
-        const status = await getContainerStatus(containerName);
-        const dockerHealthy = await isContainerRunning(containerName);
+        const { stdout: inspectOut } = await execAsync(
+          `docker inspect ${containerName}`,
+        );
+        const containers = JSON.parse(inspectOut);
 
-        console.log(
-          `🐳 [HealthScanner] ${containerName} - Status: ${status}, Running: ${dockerHealthy}`,
+        if (!containers || containers.length === 0) {
+          reports.push({
+            containerName,
+            containerRunning: false,
+            containerStatus: "not_found",
+            applicationHealthy: false,
+            overallHealthy: false,
+            issues: ["Container not found"],
+          });
+          unhealthyContainers.push(containerName);
+          continue;
+        }
+
+        const container = containers[0];
+        const state = container.State || {};
+        const status = state.Status || "unknown";
+        // 🔥 FIX: Case-insensitive check for running status
+        const running = status.toLowerCase() === "running";
+        const dockerHealth = state.Health?.Status;
+
+        // Perform HTTP health check
+        const httpHealth = await checkContainerHttpHealth(
+          containerName,
+          config.timeout || 3000,
         );
 
-        // Get ports
-        const ports = await getContainerPorts(containerName);
+        console.log(
+          `📊 [HealthCheckScanner] ${containerName} HTTP check result:`,
+          httpHealth,
+        );
 
-        // Fetch logs
-        const logs = await getContainerLogs(containerName, 100);
-
-        let applicationHealthy = true;
-        let httpHealthStatus = undefined;
-
-        // Only check HTTP health if container is running
-        if (dockerHealthy) {
-          httpHealthStatus = await checkContainerHTTPHealth(
-            containerName,
-            ports,
-            config.timeout || 3000,
-          );
-
-          applicationHealthy = httpHealthStatus.healthy;
-
-          console.log(
-            `🏥 [HealthScanner] ${containerName} - HTTP Health: ${applicationHealthy}`,
-          );
-        } else {
-          console.log(
-            `⚠️ [HealthScanner] ${containerName} is not running, skipping HTTP check`,
-          );
-          applicationHealthy = false;
+        // Determine issues
+        const issues: string[] = [];
+        if (!running) {
+          issues.push(`Container not running (status: ${status})`);
         }
+        if (dockerHealth && dockerHealth !== "healthy") {
+          issues.push(`Docker health check: ${dockerHealth}`);
+        }
+
+        // 🔥 CRITICAL: If HTTP check was attempted but failed or showed unhealthy
+        if (httpHealth.checked && !httpHealth.healthy) {
+          issues.push("Application health check failed");
+        } else if (!httpHealth.checked && httpHealth.error) {
+          // HTTP check couldn't be performed
+          issues.push(`Health check error: ${httpHealth.error}`);
+        }
+
+        // 🔥 CRITICAL: Application is unhealthy if:
+        // 1. HTTP check was performed and showed unhealthy, OR
+        // 2. HTTP check couldn't be performed due to errors (connection refused, etc.)
+        const applicationHealthy = httpHealth.checked
+          ? httpHealth.healthy
+          : httpHealth.error
+            ? false // If there was an error, mark as unhealthy
+            : true; // If no ports (no check needed), assume healthy
+
+        const overallHealthy =
+          running &&
+          (!dockerHealth || dockerHealth === "healthy") &&
+          applicationHealthy;
 
         const report: ContainerHealthReport = {
           containerName,
-          dockerHealthy,
+          containerRunning: running,
+          containerStatus: status,
+          containerHealth: dockerHealth,
+          httpHealthStatus:
+            httpHealth.checked || httpHealth.error ? httpHealth : undefined,
           applicationHealthy,
-          httpHealthStatus,
-          ports,
-          status,
-          logs,
+          overallHealthy,
+          issues,
         };
 
         reports.push(report);
 
-        // ✅ FIX: Container is unhealthy if EITHER docker is down OR app is unhealthy
-        if (!dockerHealthy || !applicationHealthy) {
+        // Track unhealthy containers
+        if (!overallHealthy) {
           unhealthyContainers.push(containerName);
-          console.log(`❌ [HealthScanner] ${containerName} is UNHEALTHY`);
-        } else {
-          healthyCount++;
-          console.log(`✅ [HealthScanner] ${containerName} is HEALTHY`);
         }
-      } catch (err: any) {
-        console.error(
-          `❌ [HealthScanner] Error scanning ${containerName}:`,
-          err.message,
-        );
 
-        // Add error report
+        // 🔥 NEW: Track application-level unhealthy containers separately
+        if (!applicationHealthy) {
+          applicationUnhealthyContainers.push(containerName);
+          console.log(
+            `🚨 [HealthCheckScanner] ${containerName} is APPLICATION UNHEALTHY`,
+          );
+        }
+
+        console.log(
+          `✅ [HealthCheckScanner] ${containerName}: overall=${overallHealthy}, app=${applicationHealthy}, issues=${issues.length}`,
+        );
+        if (issues.length > 0) {
+          console.log(`   Issues: ${issues.join(", ")}`);
+        }
+      } catch (err) {
+        console.error(
+          `❌ [HealthCheckScanner] Error scanning ${containerName}:`,
+          (err as Error).message,
+        );
         reports.push({
           containerName,
-          dockerHealthy: false,
+          containerRunning: false,
+          containerStatus: "error",
           applicationHealthy: false,
-          ports: [],
-          status: "error",
-          logs: `Error: ${err.message}`,
+          overallHealthy: false,
+          issues: [`Scan error: ${(err as Error).message}`],
         });
-
         unhealthyContainers.push(containerName);
       }
     }
 
+    const healthyCount = reports.filter((r) => r.overallHealthy).length;
     const result: HealthCheckScannerResult = {
       success: true,
-      scannedCount: containerNames.length,
+      scannedCount: reports.length,
       healthyCount,
       unhealthyCount: unhealthyContainers.length,
       unhealthyContainers,
+      applicationUnhealthyContainers,
       reports,
       timestamp: new Date().toISOString(),
     };
 
-    console.log("\n✅ [HealthScanner] Scan complete");
+    console.log("\n📊 [HealthCheckScanner] Scan complete:");
+    console.log(`   Scanned: ${result.scannedCount}`);
+    console.log(`   Healthy: ${result.healthyCount}`);
+    console.log(`   Unhealthy: ${result.unhealthyCount}`);
     console.log(
-      `📊 [HealthScanner] Results: ${healthyCount} healthy, ${unhealthyContainers.length} unhealthy`,
+      `   App Unhealthy: ${result.applicationUnhealthyContainers.length}`,
     );
+    console.log(`   Unhealthy containers:`, result.unhealthyContainers);
     console.log(
-      `📋 [HealthScanner] Unhealthy containers:`,
-      unhealthyContainers,
+      `   App unhealthy containers:`,
+      result.applicationUnhealthyContainers,
     );
 
     return result;
-  } catch (err: any) {
-    console.error("❌ [HealthScanner] Fatal error:", err.message);
-
+  } catch (err) {
+    console.error(
+      "❌ [HealthCheckScanner] Fatal error:",
+      (err as Error).message,
+    );
     return {
       success: false,
       scannedCount: 0,
       healthyCount: 0,
       unhealthyCount: 0,
       unhealthyContainers: [],
+      applicationUnhealthyContainers: [],
       reports: [],
       timestamp: new Date().toISOString(),
-      error: err.message,
+      error: (err as Error).message,
     };
   }
 }
