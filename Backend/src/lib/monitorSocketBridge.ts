@@ -167,87 +167,131 @@ export function setupAIFixHandler(io: Server) {
             },
           });
 
-          // Step 4: Auto-fix if high confidence
-          const shouldAutoFix =
-            analysisResult.success &&
-            analysisResult.confidence === "high" &&
-            (analysisResult.errorCategory === "crash" ||
-              analysisResult.errorCategory === "memory_leak" ||
-              analysisResult.errorCategory === "resource_exhaustion");
-
-          if (shouldAutoFix) {
-            console.log(`🔧 [AI Fix] Applying fix for ${containerName}...`);
-
-            io.to(runId).emit("ai_fix_progress", {
-              runId,
-              containerName,
-              stage: "applying_fix",
-              message: "Restarting container...",
-            });
-
-            const restartResult = await executeMCPTool("tool.dockerRestart", {
-              containerName,
-              timeout: 10,
-            });
-
-            if (restartResult.success) {
-              console.log(
-                `✅ [AI Fix] Container ${containerName} restarted successfully`,
-              );
-
-              // Wait for stabilization
-              await new Promise((resolve) => setTimeout(resolve, 3000));
-
-              // Verify the fix
-              const verifyLogs = await executeMCPTool("tool.dockerLogs", {
-                containerName,
-                tail: 50,
-                timestamps: true,
-              });
-
-              const totalDuration = Date.now() - startTime;
-
-              io.to(runId).emit("ai_fix_result", {
-                runId,
-                containerName,
-                success: true,
-                message: `Successfully fixed ${containerName}`,
-                analysis: {
-                  summary: analysisResult.summary,
-                  rootCause: analysisResult.rootCause,
-                  confidence: analysisResult.confidence,
-                  suggestedFixes: analysisResult.suggestedFixes,
-                },
-                action: "Container restarted",
-                verificationLogs:
-                  verifyLogs.logs || "Unable to fetch verification logs",
-                duration: totalDuration,
-              });
-            } else {
-              throw new Error(
-                `Restart failed: ${restartResult.error || "Unknown error"}`,
-              );
-            }
-          } else {
-            // Manual intervention required
-            console.log(
-              `⚠️ [AI Fix] Manual intervention required for ${containerName}`,
+          // Step 4: Determine fix strategy based on AI analysis
+          const canAutoFix =
+            analysisResult.success && analysisResult.confidence !== "low";
+          const restartRecommended =
+            analysisResult.errorCategory === "crash" ||
+            analysisResult.errorCategory === "memory_leak" ||
+            analysisResult.errorCategory === "resource_exhaustion" ||
+            analysisResult.suggestedFixes.some(
+              (fix: string) =>
+                fix.toLowerCase().includes("restart") ||
+                fix.toLowerCase().includes("reboot"),
             );
+
+          // 🔥 ALWAYS SHOW AI ANALYSIS - Don't just say "manual intervention"
+          if (!canAutoFix) {
+            // Low confidence - show analysis but don't auto-fix
+            console.log(
+              `⚠️ [AI Fix] Low confidence (${analysisResult.confidence}) - showing suggestions only`,
+            );
+
+            const totalDuration = Date.now() - startTime;
 
             io.to(runId).emit("ai_fix_result", {
               runId,
               containerName,
-              success: false,
-              message: `Manual intervention required for ${containerName}`,
+              success: true, // ✅ Changed: we DID get analysis
+              message: `AI Analysis Complete (${analysisResult.confidence} confidence)`,
               analysis: {
                 summary: analysisResult.summary,
                 rootCause: analysisResult.rootCause,
                 confidence: analysisResult.confidence,
                 suggestedFixes: analysisResult.suggestedFixes,
+                errorCategory: analysisResult.errorCategory,
               },
-              reason: `Low confidence (${analysisResult.confidence}) or complex issue`,
-              manualSteps: analysisResult.suggestedFixes,
+              action: "analysis_only",
+              reason: `Confidence level: ${analysisResult.confidence}. Review suggestions and apply manually.`,
+              duration: totalDuration,
             });
+            return;
+          }
+
+          if (!restartRecommended) {
+            // Medium/high confidence but restart not needed - show detailed suggestions
+            console.log(
+              `ℹ️ [AI Fix] Restart not recommended for ${containerName} - providing guidance`,
+            );
+
+            const totalDuration = Date.now() - startTime;
+
+            io.to(runId).emit("ai_fix_result", {
+              runId,
+              containerName,
+              success: true, // ✅ Success - we have actionable suggestions
+              message: `AI Recommendations (${analysisResult.confidence} confidence)`,
+              analysis: {
+                summary: analysisResult.summary,
+                rootCause: analysisResult.rootCause,
+                confidence: analysisResult.confidence,
+                suggestedFixes: analysisResult.suggestedFixes,
+                errorCategory: analysisResult.errorCategory,
+              },
+              action: "manual_steps_provided",
+              manualSteps: analysisResult.suggestedFixes,
+              reason:
+                "Issue requires manual intervention. Follow the suggested steps below.",
+              duration: totalDuration,
+            });
+            return;
+          }
+
+          // Auto-fix with restart
+          console.log(
+            `🔧 [AI Fix] Auto-fixing ${containerName} with restart (confidence: ${analysisResult.confidence})...`,
+          );
+
+          io.to(runId).emit("ai_fix_progress", {
+            runId,
+            containerName,
+            stage: "applying_fix",
+            message: "Restarting container based on AI analysis...",
+          });
+
+          const restartResult = await executeMCPTool("tool.dockerRestart", {
+            containerName,
+            timeout: 10,
+          });
+
+          if (restartResult.success) {
+            console.log(
+              `✅ [AI Fix] Container ${containerName} restarted successfully`,
+            );
+
+            // Wait for stabilization
+            await new Promise((resolve) => setTimeout(resolve, 3000));
+
+            // Verify the fix
+            const verifyLogs = await executeMCPTool("tool.dockerLogs", {
+              containerName,
+              tail: 50,
+              timestamps: true,
+            });
+
+            const totalDuration = Date.now() - startTime;
+
+            io.to(runId).emit("ai_fix_result", {
+              runId,
+              containerName,
+              success: true,
+              message: `✅ Container restarted successfully`,
+              analysis: {
+                summary: analysisResult.summary,
+                rootCause: analysisResult.rootCause,
+                confidence: analysisResult.confidence,
+                suggestedFixes: analysisResult.suggestedFixes,
+                errorCategory: analysisResult.errorCategory,
+              },
+              action: "container_restarted",
+              verificationLogs:
+                verifyLogs.logs || "Unable to fetch verification logs",
+              duration: totalDuration,
+            });
+          } else {
+            throw new Error(
+              `Restart failed: ${restartResult.error || "Unknown error"}`,
+            );
           }
         } catch (error: any) {
           const totalDuration = Date.now() - startTime;
