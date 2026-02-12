@@ -28,7 +28,6 @@ import {
   Wifi,
   WifiOff,
   Globe,
-  RefreshCw,
 } from "lucide-react";
 import { io, Socket } from "socket.io-client";
 
@@ -162,12 +161,12 @@ export default function MonitorDashboard({ onClose }: { onClose: () => void }) {
   const healthyContainers = metrics.filter((m) => m.severity === "HEALTHY");
 
   return (
-    <div className="h-full w-full flex flex-col bg-gray-50 dark:bg-gray-950">
+    <div className="h-full w-full flex flex-col bg-[rgb(var(--background))]">
       {/* Header */}
       <motion.div
         initial={{ y: -20, opacity: 0 }}
         animate={{ y: 0, opacity: 1 }}
-        className="border-b border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900 px-6 py-4"
+        className="border-b border-[rgb(var(--border))] surface-elevated px-6 py-4"
       >
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-4">
@@ -175,21 +174,21 @@ export default function MonitorDashboard({ onClose }: { onClose: () => void }) {
               whileHover={{ x: -2 }}
               whileTap={{ scale: 0.98 }}
               onClick={onClose}
-              className="p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
+              className="p-2 rounded-lg hover:surface transition-colors"
             >
-              <ChevronLeft className="h-5 w-5 text-gray-600 dark:text-gray-400" />
+              <ChevronLeft className="h-5 w-5 text-[rgb(var(--foreground-muted))]" />
             </motion.button>
 
             <div className="flex items-center gap-3">
-              <div className="p-2 rounded-lg bg-blue-50 dark:bg-blue-950/30">
-                <Activity className="h-5 w-5 text-blue-600 dark:text-blue-500" />
+              <div className="p-2 rounded-lg bg-[rgb(var(--primary))]/10 border border-[rgb(var(--primary))]/20">
+                <Activity className="h-5 w-5 text-[rgb(var(--primary))]" />
               </div>
 
               <div>
-                <div className="text-base font-bold text-gray-900 dark:text-gray-100">
+                <div className="text-base font-bold text-[rgb(var(--foreground))]">
                   Container Monitoring
                 </div>
-                <div className="text-xs text-gray-500">
+                <div className="text-xs text-[rgb(var(--foreground-muted))]">
                   Real-time monitoring with AI auto-healing
                 </div>
               </div>
@@ -200,7 +199,7 @@ export default function MonitorDashboard({ onClose }: { onClose: () => void }) {
             {!isMonitoring ? (
               <button
                 onClick={handleStartMonitoring}
-                className="px-4 py-2 rounded-lg bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium transition-colors flex items-center gap-2"
+                className="px-4 py-2 rounded-lg bg-[rgb(var(--primary))] hover:bg-[rgb(var(--primary-hover))] text-[rgb(var(--primary-foreground))] text-sm font-medium transition-colors flex items-center gap-2"
               >
                 <Play className="h-4 w-4" />
                 Start Monitoring
@@ -208,7 +207,7 @@ export default function MonitorDashboard({ onClose }: { onClose: () => void }) {
             ) : (
               <button
                 onClick={handleStopMonitoring}
-                className="px-4 py-2 rounded-lg bg-red-600 hover:bg-red-700 text-white text-sm font-medium transition-colors flex items-center gap-2"
+                className="px-4 py-2 rounded-lg bg-[rgb(var(--error))] hover:bg-[rgb(var(--error))]/90 text-white text-sm font-medium transition-colors flex items-center gap-2"
               >
                 <Pause className="h-4 w-4" />
                 Stop Monitoring
@@ -227,19 +226,19 @@ export default function MonitorDashboard({ onClose }: { onClose: () => void }) {
               animate={{ opacity: 1, y: 0 }}
               className="text-center py-24"
             >
-              <div className="inline-flex items-center justify-center w-20 h-20 rounded-2xl bg-gradient-to-br from-blue-50 to-blue-100 dark:from-blue-950/30 dark:to-blue-900/20 border border-gray-200 dark:border-gray-800 mb-6">
-                <Activity className="h-10 w-10 text-blue-600 dark:text-blue-500" />
+              <div className="inline-flex items-center justify-center w-20 h-20 rounded-2xl surface-elevated border border-[rgb(var(--border))] mb-6">
+                <Activity className="h-10 w-10 text-[rgb(var(--primary))]" />
               </div>
-              <h2 className="text-2xl font-bold text-gray-900 dark:text-gray-100 mb-2">
+              <h2 className="text-2xl font-bold text-[rgb(var(--foreground))] mb-2">
                 Start Container Monitoring
               </h2>
-              <p className="text-gray-600 dark:text-gray-400 mb-6 max-w-md mx-auto">
+              <p className="text-[rgb(var(--foreground-muted))] mb-6 max-w-md mx-auto">
                 Monitor your Docker containers in real-time with AI-powered
                 auto-healing capabilities
               </p>
               <button
                 onClick={handleStartMonitoring}
-                className="px-6 py-3 rounded-lg bg-blue-600 hover:bg-blue-700 text-white font-medium transition-colors flex items-center gap-2 mx-auto"
+                className="px-6 py-3 rounded-lg bg-[rgb(var(--primary))] hover:bg-[rgb(var(--primary-hover))] text-[rgb(var(--primary-foreground))] font-medium transition-colors flex items-center gap-2 mx-auto"
               >
                 <Play className="h-4 w-4" />
                 Start Monitoring
@@ -251,26 +250,26 @@ export default function MonitorDashboard({ onClose }: { onClose: () => void }) {
               <motion.div
                 initial={{ opacity: 0, y: -20 }}
                 animate={{ opacity: 1, y: 0 }}
-                className="rounded-xl border border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900 p-6"
+                className="rounded-xl border border-[rgb(var(--border))] surface-elevated p-6"
               >
                 <div className="flex items-center justify-between mb-4">
                   <div className="flex items-center gap-3">
                     <div className="relative">
-                      <div className="w-10 h-10 rounded-lg bg-blue-50 dark:bg-blue-950/30 flex items-center justify-center">
+                      <div className="w-10 h-10 rounded-lg bg-[rgb(var(--primary))]/10 border border-[rgb(var(--primary))]/20 flex items-center justify-center">
                         {!isPaused ? (
                           <motion.div
                             animate={{ scale: [1, 1.1, 1] }}
                             transition={{ duration: 2, repeat: Infinity }}
                           >
-                            <Activity className="h-5 w-5 text-blue-600 dark:text-blue-500" />
+                            <Activity className="h-5 w-5 text-[rgb(var(--primary))]" />
                           </motion.div>
                         ) : (
-                          <Pause className="h-5 w-5 text-amber-600 dark:text-amber-500" />
+                          <Pause className="h-5 w-5 text-[rgb(var(--warning))]" />
                         )}
                       </div>
                       {!isPaused && (
                         <motion.div
-                          className="absolute -top-1 -right-1 w-3 h-3 bg-green-500 rounded-full border-2 border-white dark:border-gray-900"
+                          className="absolute -top-1 -right-1 w-3 h-3 bg-[rgb(var(--success))] rounded-full border-2 border-[rgb(var(--surface-elevated))]"
                           animate={{ opacity: [1, 0.3, 1] }}
                           transition={{ duration: 1.5, repeat: Infinity }}
                         />
@@ -278,13 +277,13 @@ export default function MonitorDashboard({ onClose }: { onClose: () => void }) {
                     </div>
 
                     <div>
-                      <h3 className="text-base font-bold text-gray-900 dark:text-gray-100 flex items-center gap-2">
+                      <h3 className="text-base font-bold text-[rgb(var(--foreground))] flex items-center gap-2">
                         Monitoring Status
-                        <span className="text-[10px] px-2 py-0.5 rounded-full bg-green-50 dark:bg-green-950/30 text-green-700 dark:text-green-400 font-medium border border-green-200 dark:border-green-800">
+                        <span className="text-[10px] px-2 py-0.5 rounded-full bg-[rgb(var(--success))]/10 text-[rgb(var(--success))] font-medium border border-[rgb(var(--success))]/20">
                           {isPaused ? "PAUSED" : "ACTIVE"}
                         </span>
                       </h3>
-                      <div className="flex items-center gap-2 text-xs text-gray-600 dark:text-gray-400 mt-1">
+                      <div className="flex items-center gap-2 text-xs text-[rgb(var(--foreground-muted))] mt-1">
                         <span>{formatUptime(stats.uptime)}</span>
                         <span>•</span>
                         <span>Check #{stats.checkCount}</span>
@@ -297,8 +296,8 @@ export default function MonitorDashboard({ onClose }: { onClose: () => void }) {
                       onClick={() => setShowAlerts(!showAlerts)}
                       className={`p-2 rounded-lg transition-colors ${
                         showAlerts
-                          ? "bg-blue-50 dark:bg-blue-950/30 text-blue-600 dark:text-blue-500"
-                          : "bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-400"
+                          ? "bg-[rgb(var(--primary))]/10 text-[rgb(var(--primary))]"
+                          : "surface text-[rgb(var(--foreground-muted))]"
                       }`}
                     >
                       {showAlerts ? (
@@ -312,8 +311,8 @@ export default function MonitorDashboard({ onClose }: { onClose: () => void }) {
                       onClick={() => setSoundEnabled(!soundEnabled)}
                       className={`p-2 rounded-lg transition-colors ${
                         soundEnabled
-                          ? "bg-blue-50 dark:bg-blue-950/30 text-blue-600 dark:text-blue-500"
-                          : "bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-400"
+                          ? "bg-[rgb(var(--primary))]/10 text-[rgb(var(--primary))]"
+                          : "surface text-[rgb(var(--foreground-muted))]"
                       }`}
                     >
                       {soundEnabled ? (
@@ -327,8 +326,8 @@ export default function MonitorDashboard({ onClose }: { onClose: () => void }) {
                       onClick={togglePause}
                       className={`px-3 py-2 rounded-lg font-medium text-xs transition-colors flex items-center gap-1 ${
                         isPaused
-                          ? "bg-green-50 dark:bg-green-950/30 text-green-700 dark:text-green-400 hover:bg-green-100 dark:hover:bg-green-900/30"
-                          : "bg-amber-50 dark:bg-amber-950/30 text-amber-700 dark:text-amber-400 hover:bg-amber-100 dark:hover:bg-amber-900/30"
+                          ? "bg-[rgb(var(--success))]/10 text-[rgb(var(--success))] hover:bg-[rgb(var(--success))]/20"
+                          : "bg-[rgb(var(--warning))]/10 text-[rgb(var(--warning))] hover:bg-[rgb(var(--warning))]/20"
                       }`}
                     >
                       {isPaused ? (
@@ -350,26 +349,26 @@ export default function MonitorDashboard({ onClose }: { onClose: () => void }) {
                   <StatCard
                     label="Total"
                     value={stats.totalContainers}
-                    color="text-gray-700 dark:text-gray-300"
-                    bg="bg-gray-50 dark:bg-gray-800"
+                    color="text-[rgb(var(--foreground))]"
+                    bg="surface"
                   />
                   <StatCard
                     label="Healthy"
                     value={stats.healthyCount}
-                    color="text-green-700 dark:text-green-400"
-                    bg="bg-green-50 dark:bg-green-950/30"
+                    color="text-[rgb(var(--success))]"
+                    bg="bg-[rgb(var(--success))]/10"
                   />
                   <StatCard
                     label="Warning"
                     value={stats.warningCount}
-                    color="text-amber-700 dark:text-amber-400"
-                    bg="bg-amber-50 dark:bg-amber-950/30"
+                    color="text-[rgb(var(--warning))]"
+                    bg="bg-[rgb(var(--warning))]/10"
                   />
                   <StatCard
                     label="Critical"
                     value={stats.criticalCount}
-                    color="text-red-700 dark:text-red-400"
-                    bg="bg-red-50 dark:bg-red-950/30"
+                    color="text-[rgb(var(--error))]"
+                    bg="bg-[rgb(var(--error))]/10"
                     pulse={stats.criticalCount > 0}
                   />
                 </div>
@@ -382,7 +381,7 @@ export default function MonitorDashboard({ onClose }: { onClose: () => void }) {
                     initial={{ height: 0, opacity: 0 }}
                     animate={{ height: "auto", opacity: 1 }}
                     exit={{ height: 0, opacity: 0 }}
-                    className="rounded-xl border border-purple-200 dark:border-purple-800 bg-gradient-to-r from-purple-50 to-blue-50 dark:from-purple-950/30 dark:to-blue-950/30 overflow-hidden"
+                    className="rounded-xl border border-[rgb(var(--primary))]/20 bg-[rgb(var(--primary))]/5 overflow-hidden"
                   >
                     <div className="p-6">
                       <div className="flex items-center gap-3 mb-4">
@@ -394,28 +393,28 @@ export default function MonitorDashboard({ onClose }: { onClose: () => void }) {
                             ease: "linear",
                           }}
                         >
-                          <Brain className="h-5 w-5 text-purple-600 dark:text-purple-400" />
+                          <Brain className="h-5 w-5 text-[rgb(var(--primary))]" />
                         </motion.div>
                         <div>
-                          <div className="font-semibold text-gray-900 dark:text-gray-100">
+                          <div className="font-semibold text-[rgb(var(--foreground))]">
                             AI Auto-Recovery in Progress
                           </div>
-                          <div className="text-xs text-gray-600 dark:text-gray-400 mt-0.5">
+                          <div className="text-xs text-[rgb(var(--foreground-muted))] mt-0.5">
                             {aiFixProgress.message || "Analyzing logs..."}
                           </div>
                         </div>
                       </div>
 
                       {aiFixProgress.analysis && (
-                        <div className="space-y-3 rounded-lg bg-white dark:bg-gray-900 p-4 border border-purple-100 dark:border-purple-900">
-                          <div className="text-xs font-semibold text-purple-900 dark:text-purple-100">
+                        <div className="space-y-3 rounded-lg surface-elevated p-4 border border-[rgb(var(--border))]">
+                          <div className="text-xs font-semibold text-[rgb(var(--foreground))]">
                             AI Analysis Complete
                           </div>
-                          <div className="text-xs text-gray-700 dark:text-gray-300">
+                          <div className="text-xs text-[rgb(var(--foreground-muted))]">
                             <span className="font-medium">Summary:</span>{" "}
                             {aiFixProgress.analysis.summary}
                           </div>
-                          <div className="text-xs text-gray-700 dark:text-gray-300">
+                          <div className="text-xs text-[rgb(var(--foreground-muted))]">
                             <span className="font-medium">Root Cause:</span>{" "}
                             {aiFixProgress.analysis.rootCause}
                           </div>
@@ -430,8 +429,8 @@ export default function MonitorDashboard({ onClose }: { onClose: () => void }) {
               {(criticalContainers.length > 0 ||
                 warningContainers.length > 0) && (
                 <div className="space-y-3">
-                  <h4 className="text-sm font-semibold text-gray-900 dark:text-gray-100 flex items-center gap-2">
-                    <AlertTriangle className="h-4 w-4 text-amber-600 dark:text-amber-500" />
+                  <h4 className="text-sm font-semibold text-[rgb(var(--foreground))] flex items-center gap-2">
+                    <AlertTriangle className="h-4 w-4 text-[rgb(var(--warning))]" />
                     Issues Detected (
                     {criticalContainers.length + warningContainers.length})
                   </h4>
@@ -478,15 +477,15 @@ export default function MonitorDashboard({ onClose }: { onClose: () => void }) {
 
               {/* Healthy Containers */}
               {healthyContainers.length > 0 && (
-                <div className="rounded-lg border border-green-200 dark:border-green-800 bg-green-50 dark:bg-green-950/30 p-4">
-                  <div className="flex items-center gap-2 text-sm text-green-700 dark:text-green-400">
+                <div className="rounded-lg border border-[rgb(var(--success))]/20 bg-[rgb(var(--success))]/5 p-4">
+                  <div className="flex items-center gap-2 text-sm text-[rgb(var(--success))]">
                     <CheckCircle2 className="h-4 w-4" />
                     <span className="font-medium">
                       {healthyContainers.length} Healthy Container
                       {healthyContainers.length !== 1 ? "s" : ""}
                     </span>
                   </div>
-                  <div className="text-xs text-green-600 dark:text-green-500 mt-1">
+                  <div className="text-xs text-[rgb(var(--foreground-muted))] mt-1">
                     {healthyContainers.map((c) => c.containerName).join(", ")}
                   </div>
                 </div>
@@ -496,13 +495,13 @@ export default function MonitorDashboard({ onClose }: { onClose: () => void }) {
               {showAlerts && alerts.length > 0 && (
                 <div className="space-y-2">
                   <div className="flex items-center justify-between">
-                    <h4 className="text-sm font-semibold text-gray-900 dark:text-gray-100 flex items-center gap-2">
+                    <h4 className="text-sm font-semibold text-[rgb(var(--foreground))] flex items-center gap-2">
                       <Bell className="h-4 w-4" />
                       Recent Alerts ({alerts.length})
                     </h4>
                     <button
                       onClick={() => setAlerts([])}
-                      className="text-xs text-gray-500 hover:text-gray-700 dark:hover:text-gray-300"
+                      className="text-xs text-[rgb(var(--foreground-muted))] hover:text-[rgb(var(--foreground))]"
                     >
                       Clear
                     </button>
@@ -543,16 +542,14 @@ function StatCard({
   pulse?: boolean;
 }) {
   return (
-    <div
-      className={`rounded-lg ${bg} border border-gray-200 dark:border-gray-700 p-3`}
-    >
+    <div className={`rounded-lg ${bg} border border-[rgb(var(--border))] p-3`}>
       <div className="flex items-center justify-between mb-1">
-        <span className="text-xs text-gray-600 dark:text-gray-400">
+        <span className="text-xs text-[rgb(var(--foreground-muted))]">
           {label}
         </span>
         {pulse && value > 0 && (
           <motion.div
-            className="w-2 h-2 bg-red-500 rounded-full"
+            className="w-2 h-2 bg-[rgb(var(--error))] rounded-full"
             animate={{ opacity: [1, 0.3, 1] }}
             transition={{ duration: 1, repeat: Infinity }}
           />
@@ -584,23 +581,23 @@ function ContainerCard({
     switch (metric.severity) {
       case "CRITICAL":
         return {
-          bg: "bg-red-50 dark:bg-red-950/30",
-          border: "border-red-200 dark:border-red-800",
-          text: "text-red-700 dark:text-red-400",
+          bg: "bg-[rgb(var(--error))]/10",
+          border: "border-[rgb(var(--error))]/20",
+          text: "text-[rgb(var(--error))]",
           icon: XCircle,
         };
       case "WARNING":
         return {
-          bg: "bg-amber-50 dark:bg-amber-950/30",
-          border: "border-amber-200 dark:border-amber-800",
-          text: "text-amber-700 dark:text-amber-400",
+          bg: "bg-[rgb(var(--warning))]/10",
+          border: "border-[rgb(var(--warning))]/20",
+          text: "text-[rgb(var(--warning))]",
           icon: AlertTriangle,
         };
       default:
         return {
-          bg: "bg-green-50 dark:bg-green-950/30",
-          border: "border-green-200 dark:border-green-800",
-          text: "text-green-700 dark:text-green-400",
+          bg: "bg-[rgb(var(--success))]/10",
+          border: "border-[rgb(var(--success))]/20",
+          text: "text-[rgb(var(--success))]",
           icon: CheckCircle2,
         };
     }
@@ -628,16 +625,16 @@ function ContainerCard({
     >
       <button
         onClick={onToggle}
-        className="w-full p-4 text-left hover:bg-white/50 dark:hover:bg-gray-900/50 transition-colors"
+        className="w-full p-4 text-left hover:surface transition-colors"
       >
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2 flex-1 min-w-0">
             <Icon className={`h-4 w-4 ${config.text} flex-shrink-0`} />
-            <span className="font-semibold text-gray-900 dark:text-gray-100 text-sm truncate">
+            <span className="font-semibold text-[rgb(var(--foreground))] text-sm truncate">
               {metric.containerName}
             </span>
             {metric.issues && (
-              <span className="text-[10px] px-2 py-0.5 rounded-full bg-white dark:bg-gray-900 text-gray-600 dark:text-gray-400 border border-gray-200 dark:border-gray-700 flex items-center gap-1">
+              <span className="text-[10px] px-2 py-0.5 rounded-full surface-elevated text-[rgb(var(--foreground-muted))] border border-[rgb(var(--border))] flex items-center gap-1">
                 <FileText className="h-2.5 w-2.5" />
                 {metric.issues.length} issue
                 {metric.issues.length !== 1 ? "s" : ""}
@@ -650,55 +647,63 @@ function ContainerCard({
               {metric.severity}
             </span>
             <ChevronDown
-              className={`h-4 w-4 text-gray-400 transition-transform ${isExpanded ? "" : "-rotate-90"}`}
+              className={`h-4 w-4 text-[rgb(var(--foreground-subtle))] transition-transform ${isExpanded ? "" : "-rotate-90"}`}
             />
           </div>
         </div>
 
         <div className="grid grid-cols-4 gap-3 mt-3 text-xs">
           <div>
-            <div className="text-gray-500 mb-0.5">Docker</div>
+            <div className="text-[rgb(var(--foreground-muted))] mb-0.5">
+              Docker
+            </div>
             <div
               className={
                 metric.httpHealthStatus?.healthy
-                  ? "text-green-600 dark:text-green-400"
-                  : "text-red-600 dark:text-red-400"
+                  ? "text-[rgb(var(--success))]"
+                  : "text-[rgb(var(--error))]"
               }
             >
               {metric.httpHealthStatus?.healthy ? "✓ OK" : "✗ Down"}
             </div>
           </div>
           <div>
-            <div className="text-gray-500 mb-0.5">App</div>
+            <div className="text-[rgb(var(--foreground-muted))] mb-0.5">
+              App
+            </div>
             <div
               className={
                 metric.applicationHealthy
-                  ? "text-green-600 dark:text-green-400"
-                  : "text-red-600 dark:text-red-400"
+                  ? "text-[rgb(var(--success))]"
+                  : "text-[rgb(var(--error))]"
               }
             >
               {metric.applicationHealthy ? "✓ OK" : "✗ Fail"}
             </div>
           </div>
           <div>
-            <div className="text-gray-500 mb-0.5">CPU</div>
+            <div className="text-[rgb(var(--foreground-muted))] mb-0.5">
+              CPU
+            </div>
             <div
               className={
                 parseFloat(metric.cpuPercent) > 80
-                  ? "text-amber-600 dark:text-amber-400"
-                  : "text-green-600 dark:text-green-400"
+                  ? "text-[rgb(var(--warning))]"
+                  : "text-[rgb(var(--success))]"
               }
             >
               {metric.cpuPercent}
             </div>
           </div>
           <div>
-            <div className="text-gray-500 mb-0.5">Memory</div>
+            <div className="text-[rgb(var(--foreground-muted))] mb-0.5">
+              Memory
+            </div>
             <div
               className={
                 parseFloat(metric.memPercent) > 80
-                  ? "text-amber-600 dark:text-amber-400"
-                  : "text-green-600 dark:text-green-400"
+                  ? "text-[rgb(var(--warning))]"
+                  : "text-[rgb(var(--success))]"
               }
             >
               {metric.memPercent}
@@ -713,20 +718,20 @@ function ContainerCard({
             initial={{ height: 0, opacity: 0 }}
             animate={{ height: "auto", opacity: 1 }}
             exit={{ height: 0, opacity: 0 }}
-            className="border-t border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 overflow-hidden"
+            className="border-t border-[rgb(var(--border))] surface-elevated overflow-hidden"
           >
             <div className="p-4 space-y-4">
               {metric.issues && metric.issues.length > 0 && (
                 <div>
-                  <div className="text-xs font-semibold text-gray-700 dark:text-gray-300 mb-2 flex items-center gap-1">
+                  <div className="text-xs font-semibold text-[rgb(var(--foreground))] mb-2 flex items-center gap-1">
                     <AlertCircle className="h-3 w-3" />
                     Detected Issues
                   </div>
-                  <div className="space-y-1 max-h-32 overflow-y-auto rounded-lg bg-red-50 dark:bg-red-950/20 p-3 border border-red-100 dark:border-red-900">
+                  <div className="space-y-1 max-h-32 overflow-y-auto rounded-lg bg-[rgb(var(--error))]/5 p-3 border border-[rgb(var(--error))]/20">
                     {metric.issues.map((issue, i) => (
                       <div
                         key={i}
-                        className="text-xs text-red-700 dark:text-red-300 font-mono leading-relaxed"
+                        className="text-xs text-[rgb(var(--error))] font-mono leading-relaxed"
                       >
                         {issue}
                       </div>
@@ -736,38 +741,42 @@ function ContainerCard({
               )}
 
               {metric.httpHealthStatus && (
-                <div className="rounded-lg bg-gray-50 dark:bg-gray-800 p-3 space-y-2">
-                  <div className="flex items-center gap-2 text-xs text-gray-700 dark:text-gray-300">
+                <div className="rounded-lg surface p-3 space-y-2 border border-[rgb(var(--border))]">
+                  <div className="flex items-center gap-2 text-xs text-[rgb(var(--foreground))]">
                     {metric.httpHealthStatus.healthy ? (
-                      <Wifi className="h-3 w-3 text-green-600 dark:text-green-400" />
+                      <Wifi className="h-3 w-3 text-[rgb(var(--success))]" />
                     ) : (
-                      <WifiOff className="h-3 w-3 text-red-600 dark:text-red-400" />
+                      <WifiOff className="h-3 w-3 text-[rgb(var(--error))]" />
                     )}
                     <span className="font-medium">HTTP Health Check</span>
                   </div>
                   {metric.httpHealthStatus.checkedUrl && (
-                    <div className="text-xs text-gray-600 dark:text-gray-400">
+                    <div className="text-xs text-[rgb(var(--foreground-muted))]">
                       <Globe className="h-2.5 w-2.5 inline mr-1" />
                       {metric.httpHealthStatus.checkedUrl}
                     </div>
                   )}
                   {metric.httpHealthStatus.statusCode && (
                     <div className="flex items-center gap-2 text-xs">
-                      <span className="text-gray-500">Status:</span>
+                      <span className="text-[rgb(var(--foreground-muted))]">
+                        Status:
+                      </span>
                       <span
                         className={
                           metric.httpHealthStatus.statusCode >= 200 &&
                           metric.httpHealthStatus.statusCode < 300
-                            ? "text-green-600 dark:text-green-400"
-                            : "text-red-600 dark:text-red-400"
+                            ? "text-[rgb(var(--success))]"
+                            : "text-[rgb(var(--error))]"
                         }
                       >
                         {metric.httpHealthStatus.statusCode}
                       </span>
                       {metric.httpHealthStatus.responseTime && (
                         <>
-                          <span className="text-gray-400">•</span>
-                          <span className="text-gray-600 dark:text-gray-400">
+                          <span className="text-[rgb(var(--foreground-subtle))]">
+                            •
+                          </span>
+                          <span className="text-[rgb(var(--foreground-muted))]">
                             {metric.httpHealthStatus.responseTime}ms
                           </span>
                         </>
@@ -780,13 +789,13 @@ function ContainerCard({
               {hasLogs && (
                 <div>
                   <div className="flex items-center justify-between mb-2">
-                    <div className="text-xs font-semibold text-gray-700 dark:text-gray-300 flex items-center gap-1">
+                    <div className="text-xs font-semibold text-[rgb(var(--foreground))] flex items-center gap-1">
                       <Terminal className="h-3 w-3" />
                       Container Logs
                     </div>
                     <button
                       onClick={copyLogs}
-                      className="text-xs px-2 py-1 rounded-lg bg-gray-100 dark:bg-gray-800 hover:bg-gray-200 dark:hover:bg-gray-700 text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-100 transition-colors flex items-center gap-1"
+                      className="text-xs px-2 py-1 rounded-lg surface hover:bg-[rgb(var(--border))] text-[rgb(var(--foreground-muted))] hover:text-[rgb(var(--foreground))] transition-colors flex items-center gap-1"
                     >
                       {copiedLogs ? (
                         <>
@@ -801,8 +810,8 @@ function ContainerCard({
                       )}
                     </button>
                   </div>
-                  <div className="rounded-lg bg-gray-900 dark:bg-black border border-gray-700 dark:border-gray-800 p-3 max-h-64 overflow-y-auto">
-                    <pre className="text-[10px] font-mono text-gray-300 dark:text-gray-400 whitespace-pre-wrap leading-relaxed">
+                  <div className="rounded-lg bg-[#1a1a1a] border border-[rgb(var(--border))] p-3 max-h-64 overflow-y-auto">
+                    <pre className="text-[10px] font-mono text-gray-300 whitespace-pre-wrap leading-relaxed">
                       {metric.logs}
                     </pre>
                   </div>
@@ -814,8 +823,8 @@ function ContainerCard({
                 disabled={isFixing}
                 className={`w-full rounded-lg px-4 py-3 font-medium text-sm transition-all flex items-center justify-center gap-2 ${
                   isFixing
-                    ? "bg-blue-100 dark:bg-blue-950/30 text-blue-600 dark:text-blue-400 cursor-wait"
-                    : "bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-700 hover:to-blue-700 text-white shadow-sm hover:shadow-md"
+                    ? "bg-[rgb(var(--primary))]/10 text-[rgb(var(--primary))] cursor-wait"
+                    : "bg-[rgb(var(--primary))] hover:bg-[rgb(var(--primary-hover))] text-[rgb(var(--primary-foreground))] shadow-sm hover:shadow-md"
                 }`}
               >
                 {isFixing ? (
@@ -843,25 +852,23 @@ function AlertCard({ alert }: { alert: MonitorAlert }) {
     switch (alert.severity) {
       case "critical":
         return {
-          bg: "bg-red-50 dark:bg-red-950/30",
-          border: "border-red-100 dark:border-red-900",
-          icon: <XCircle className="h-3 w-3 text-red-600 dark:text-red-400" />,
+          bg: "bg-[rgb(var(--error))]/10",
+          border: "border-[rgb(var(--error))]/20",
+          icon: <XCircle className="h-3 w-3 text-[rgb(var(--error))]" />,
         };
       case "warning":
         return {
-          bg: "bg-amber-50 dark:bg-amber-950/30",
-          border: "border-amber-100 dark:border-amber-900",
+          bg: "bg-[rgb(var(--warning))]/10",
+          border: "border-[rgb(var(--warning))]/20",
           icon: (
-            <AlertTriangle className="h-3 w-3 text-amber-600 dark:text-amber-400" />
+            <AlertTriangle className="h-3 w-3 text-[rgb(var(--warning))]" />
           ),
         };
       default:
         return {
-          bg: "bg-blue-50 dark:bg-blue-950/30",
-          border: "border-blue-100 dark:border-blue-900",
-          icon: (
-            <CheckCircle2 className="h-3 w-3 text-blue-600 dark:text-blue-400" />
-          ),
+          bg: "bg-[rgb(var(--primary))]/10",
+          border: "border-[rgb(var(--primary))]/20",
+          icon: <CheckCircle2 className="h-3 w-3 text-[rgb(var(--primary))]" />,
         };
     }
   };
@@ -877,10 +884,10 @@ function AlertCard({ alert }: { alert: MonitorAlert }) {
       <div className="flex items-start gap-2">
         <div className="flex-shrink-0 mt-0.5">{config.icon}</div>
         <div className="flex-1 min-w-0">
-          <div className="text-xs text-gray-900 dark:text-gray-100">
+          <div className="text-xs text-[rgb(var(--foreground))]">
             {alert.message}
           </div>
-          <div className="text-[10px] text-gray-500 mt-0.5">
+          <div className="text-[10px] text-[rgb(var(--foreground-muted))] mt-0.5">
             {new Date(alert.timestamp).toLocaleTimeString()}
           </div>
         </div>

@@ -397,42 +397,6 @@ export default function BuilderPage() {
 
               <div className="flex-1 overflow-auto p-3">
                 {!searchQuery && (
-                  <div className="mb-4">
-                    <div className="text-[9px] font-semibold text-[rgb(var(--foreground-subtle))] uppercase tracking-widest px-1 mb-2">
-                      Quick Add
-                    </div>
-                    <div className="flex flex-wrap gap-1.5">
-                      {nodesLibrary
-                        .filter((n) => QUICK_ADD_TYPES.includes(n.type))
-                        .map((node) => {
-                          const Icon = categoryIcons[node.category] || Activity;
-                          const meta =
-                            categoryMeta[node.category] ||
-                            categoryMeta["Tools"];
-                          return (
-                            <motion.button
-                              key={node.type}
-                              onClick={() => addStep(node.type)}
-                              whileTap={{ scale: 0.95 }}
-                              title={node.label}
-                              className={`group flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border border-[rgb(var(--border))] ${meta.bg} hover:border-[rgb(var(--primary))] transition-all`}
-                            >
-                              <Icon className={`h-3 w-3 ${meta.color}`} />
-                              <span
-                                className="text-[10px] font-medium text-[rgb(var(--foreground))] truncate"
-                                style={{ maxWidth: 72 }}
-                              >
-                                {node.label}
-                              </span>
-                              <Plus className="h-2.5 w-2.5 text-[rgb(var(--foreground-subtle))] group-hover:text-[rgb(var(--primary))]" />
-                            </motion.button>
-                          );
-                        })}
-                    </div>
-                  </div>
-                )}
-
-                {!searchQuery && (
                   <div className="border-t border-[rgb(var(--border-subtle))] mb-3" />
                 )}
 
