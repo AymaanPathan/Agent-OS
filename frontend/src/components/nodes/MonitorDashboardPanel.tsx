@@ -1,4 +1,3 @@
-/* eslint-disable react-hooks/immutability */
 /* eslint-disable react-hooks/purity */
 /* eslint-disable @typescript-eslint/no-explicit-any */
 "use client";
@@ -10,8 +9,7 @@ import {
   AlertTriangle,
   CheckCircle2,
   XCircle,
-  Server,
-  Clock,
+  ChevronLeft,
   Eye,
   EyeOff,
   Bell,
@@ -20,10 +18,6 @@ import {
   Pause,
   AlertCircle,
   ChevronDown,
-  ChevronRight,
-  Globe,
-  Wifi,
-  WifiOff,
   Terminal,
   Sparkles,
   Copy,
@@ -31,11 +25,11 @@ import {
   Loader2,
   Brain,
   FileText,
+  Wifi,
+  WifiOff,
+  Globe,
 } from "lucide-react";
-
-// ====================================
-// 🎯 TYPES
-// ====================================
+import { io, Socket } from "socket.io-client";
 
 type ContainerMetric = {
   containerName: string;
@@ -53,7 +47,7 @@ type ContainerMetric = {
     checkedUrl?: string;
   };
   issues?: string[];
-  logs?: string; // Real container logs
+  logs?: string;
 };
 
 type MonitorAlert = {
@@ -84,18 +78,9 @@ type AIFixProgress = {
   message?: string;
 };
 
-// ====================================
-// 🎨 MAIN MONITOR DASHBOARD
-// ====================================
-
-export function MonitorDashboard({
-  socket,
-  runId,
-}: {
-  socket: any;
-  runId: string;
-}) {
-  const [metrics, setMetrics] = useState<ContainerMetric[]>([]);
+export default function MonitorDashboard({ onClose }: { onClose: () => void }) {
+  const [socket, setSocket] = useState<Socket | null>(null);
+  const [metrics] = useState<ContainerMetric[]>([]);
   const [alerts, setAlerts] = useState<MonitorAlert[]>([]);
   const [stats, setStats] = useState<MonitorStats>({
     totalContainers: 0,
@@ -118,267 +103,52 @@ export function MonitorDashboard({
   const [aiFixProgress, setAiFixProgress] = useState<AIFixProgress | null>(
     null,
   );
-  const [aiFixResult, setAiFixResult] = useState<any>(null);
 
-  // Update uptime every second
+  useEffect(() => {
+    const newSocket = io("http://localhost:5000", {
+      transports: ["websocket"],
+    });
+    setSocket(newSocket);
+
+    return () => {
+      newSocket.disconnect();
+    };
+  }, []);
+
   useEffect(() => {
     if (!isMonitoring) return;
-
     const interval = setInterval(() => {
       setStats((prev) => ({
         ...prev,
         uptime: Math.floor((Date.now() - startTime) / 1000),
       }));
     }, 1000);
-
     return () => clearInterval(interval);
   }, [isMonitoring, startTime]);
 
-  // Socket event handlers
-  useEffect(() => {
-    if (!socket) return;
-
-    console.log("🔌 [MonitorDashboard] Setting up socket listeners");
-
-    // Monitor started
-    socket.on("monitor_started", (data: any) => {
-      console.log("🟢 Monitor started:", data);
-      setIsMonitoring(true);
-      setStartTime(Date.now());
-    });
-
-    // Check completed
-    socket.on("monitor_check_completed", (data: any) => {
-      console.log("📊 Monitor check completed:", data);
-      console.log("📊 Container data:", data.result?.containers);
-
-      setStats((prev) => ({
-        ...prev,
-        checkCount: data.checkNumber || prev.checkCount + 1,
-        lastCheckTime: data.timestamp,
-      }));
-      console.log("Data", data.result?.containers);
-      // Process container data WITH LOGS
-      if (data.result?.containers) {
-        const containerMetrics = data.result.containers.map((c: any) => {
-          console.log(
-            `📦 Raw container data for ${c.name || c.containerName}:`,
-            c,
-          );
-
-          const containerName = c.name || c.containerName;
-
-          // 🔥 FIX: Comprehensive Docker health check
-          const isDockerHealthy =
-            c?.containerRunning === true ||
-            c?.status?.toLowerCase() === "running" ||
-            c?.Status?.toLowerCase() === "running" ||
-            c?.State?.toLowerCase() === "running" ||
-            c?.applicationHealthy === true; // Logical fallback
-
-          const isAppHealthy = c?.applicationHealthy !== false;
-
-          const severity =
-            !isDockerHealthy || !isAppHealthy
-              ? "CRITICAL"
-              : parseFloat(c.cpuPercent || "0") > 80 ||
-                  parseFloat(c.memPercent || "0") > 80
-                ? "WARNING"
-                : "HEALTHY";
-
-          // Build detailed issues array from logs
-          const issues: string[] = [];
-
-          if (!isAppHealthy) {
-            // Extract error info from logs if available
-            if (c.logs && typeof c.logs === "string") {
-              const logLines = c.logs
-                .split("\n")
-                .filter((line: any) => line.trim());
-              const errorLines = logLines
-                .filter(
-                  (line: string) =>
-                    line.toLowerCase().includes("error") ||
-                    line.toLowerCase().includes("fail") ||
-                    line.toLowerCase().includes("exception") ||
-                    line.toLowerCase().includes("fatal"),
-                )
-                .slice(0, 5);
-
-              if (errorLines.length > 0) {
-                issues.push("Application errors detected:");
-                errorLines.forEach((line: string) => {
-                  issues.push(`${line.trim()}`);
-                });
-              } else {
-                issues.push(
-                  "Application health check failed (no specific errors in logs)",
-                );
-              }
-            } else {
-              issues.push("Application health check failed (logs unavailable)");
-            }
-          }
-
-          if (parseFloat(c.cpuPercent || "0") > 80)
-            issues.push(`High CPU usage: ${c.cpuPercent}`);
-          if (parseFloat(c.memPercent || "0") > 80)
-            issues.push(`High memory usage: ${c.memPercent}`);
-
-          return {
-            containerName,
-            dockerHealthy: isDockerHealthy,
-            applicationHealthy: isAppHealthy,
-            cpuPercent: c.cpuPercent || "0%",
-            memPercent: c.memPercent || "0%",
-            severity,
-            timestamp: data.timestamp,
-            httpHealthStatus: c.httpHealthStatus,
-            issues: issues.length > 0 ? issues : undefined,
-            logs: c.logs || "No logs available",
-          };
-        });
-
-        console.log("📊 Processed metrics:", containerMetrics);
-        setMetrics(containerMetrics);
-
-        // Auto-expand first unhealthy container if none is expanded
-        if (!expandedContainer) {
-          const firstUnhealthy = containerMetrics.find(
-            (m: ContainerMetric) => m.severity !== "HEALTHY",
-          );
-          if (firstUnhealthy) {
-            setExpandedContainer(firstUnhealthy.containerName);
-            console.log(`🔍 Auto-expanding: ${firstUnhealthy.containerName}`);
-          }
-        }
-
-        // Update stats
-        const healthy = containerMetrics.filter(
-          (m: ContainerMetric) => m.severity === "HEALTHY",
-        ).length;
-        const warning = containerMetrics.filter(
-          (m: ContainerMetric) => m.severity === "WARNING",
-        ).length;
-        const critical = containerMetrics.filter(
-          (m: ContainerMetric) => m.severity === "CRITICAL",
-        ).length;
-
-        setStats((prev) => ({
-          ...prev,
-          totalContainers: containerMetrics.length,
-          healthyCount: healthy,
-          warningCount: warning,
-          criticalCount: critical,
-        }));
-      }
-    });
-
-    // Alert received
-    socket.on("monitor_alert", (alert: MonitorAlert) => {
-      console.log("🚨 Monitor alert:", alert);
-
-      setAlerts((prev) => {
-        const newAlerts = [...prev, alert].slice(-20);
-        return newAlerts;
-      });
-
-      if (soundEnabled && alert.severity === "critical") {
-        playAlertSound();
-      }
-    });
-
-    // AI Fix Progress
-    socket.on("ai_fix_progress", (data: any) => {
-      console.log("🤖 AI Fix Progress:", data);
-      setAiFixProgress(data);
-    });
-
-    // AI Fix Result
-    socket.on("ai_fix_result", (result: any) => {
-      console.log("🤖 AI Fix Result:", result);
-      setFixingContainer(null);
-      setAiFixProgress(null);
-      setAiFixResult(result);
-
-      // Add alert about the fix
-      const alert: MonitorAlert = {
-        timestamp: new Date().toISOString(),
-        message: result.success
-          ? `✅ ${result.message}`
-          : `❌ ${result.message}`,
-        severity: result.success ? "info" : "critical",
-        details: result,
-      };
-      setAlerts((prev) => [...prev, alert].slice(-20));
-
-      // Clear result after 10 seconds
-      setTimeout(() => setAiFixResult(null), 10000);
-    });
-
-    // Monitor stopped
-    socket.on("monitor_stopped", (data: any) => {
-      console.log("🔴 Monitor stopped:", data);
-      setIsMonitoring(false);
-    });
-
-    return () => {
-      socket.off("monitor_started");
-      socket.off("monitor_check_completed");
-      socket.off("monitor_alert");
-      socket.off("ai_fix_progress");
-      socket.off("ai_fix_result");
-      socket.off("monitor_stopped");
-    };
-  }, [socket, soundEnabled, expandedContainer]);
-  console.log("stats ", stats);
-  // Play alert sound
-  const playAlertSound = () => {
-    try {
-      const audio = new Audio("/alert.mp3");
-      audio.volume = 0.3;
-      audio.play().catch(console.error);
-    } catch (err) {
-      console.error("Failed to play alert sound:", err);
-    }
+  const handleStartMonitoring = () => {
+    setIsMonitoring(true);
+    setStartTime(Date.now());
+    socket?.emit("start_monitor");
   };
 
-  // Toggle pause/resume
+  const handleStopMonitoring = () => {
+    setIsMonitoring(false);
+    socket?.emit("stop_monitor");
+  };
+
   const togglePause = () => {
     setIsPaused(!isPaused);
-    socket?.emit(isPaused ? "monitor_resume" : "monitor_pause", {
-      runId,
-      monitorId: "monitor-1",
-    });
+    socket?.emit(isPaused ? "monitor_resume" : "monitor_pause");
   };
-
-  // AI Fix Container
-  // Around line 142, find the handleAIFix function and replace it:
 
   const handleAIFix = async (containerName: string) => {
-    // Validate container name
-    if (
-      !containerName ||
-      containerName === "undefined" ||
-      typeof containerName !== "string"
-    ) {
-      console.error("❌ [AI Fix] Invalid container name:", containerName);
-      return;
-    }
-
-    console.log(`🤖 Initiating AI fix for: ${containerName}`);
+    if (!containerName) return;
     setFixingContainer(containerName);
     setAiFixProgress(null);
-    setAiFixResult(null);
-
-    // Emit AI fix request to backend
-    socket?.emit("ai_fix_container", {
-      runId,
-      containerName,
-    });
+    socket?.emit("ai_fix_container", { containerName });
   };
 
-  // Format uptime
   const formatUptime = (seconds: number): string => {
     const hours = Math.floor(seconds / 3600);
     const minutes = Math.floor((seconds % 3600) / 60);
@@ -386,358 +156,411 @@ export function MonitorDashboard({
     return `${hours}h ${minutes}m ${secs}s`;
   };
 
-  // Only show if monitoring is active OR has data
-  if (!isMonitoring && metrics.length === 0) {
-    return null;
-  }
-
-  // Separate containers by severity
   const criticalContainers = metrics.filter((m) => m.severity === "CRITICAL");
   const warningContainers = metrics.filter((m) => m.severity === "WARNING");
   const healthyContainers = metrics.filter((m) => m.severity === "HEALTHY");
 
   return (
-    <div className="space-y-4">
-      {/* ═══════════════════════════════════════════════════════════════
-          HEADER WITH STATUS & CONTROLS
-      ═══════════════════════════════════════════════════════════════ */}
+    <div className="h-full w-full flex flex-col bg-[rgb(var(--background))]">
+      {/* Header */}
       <motion.div
-        initial={{ opacity: 0, y: -20 }}
-        animate={{ opacity: 1, y: 0 }}
-        className="rounded-xl border-2 border-blue-500/20 bg-gradient-to-br from-blue-500/10 to-purple-500/10 p-4"
+        initial={{ y: -20, opacity: 0 }}
+        animate={{ y: 0, opacity: 1 }}
+        className="border-b border-[rgb(var(--border))] surface-elevated px-6 py-4"
       >
-        <div className="flex items-center justify-between mb-3">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-4">
+            <motion.button
+              whileHover={{ x: -2 }}
+              whileTap={{ scale: 0.98 }}
+              onClick={onClose}
+              className="p-2 rounded-lg hover:surface transition-colors"
+            >
+              <ChevronLeft className="h-5 w-5 text-[rgb(var(--foreground-muted))]" />
+            </motion.button>
+
+            <div className="flex items-center gap-3">
+              <div className="p-2 rounded-lg bg-[rgb(var(--primary))]/10">
+                <Activity className="h-5 w-5 text-[rgb(var(--primary))]" />
+              </div>
+
+              <div>
+                <div className="text-base font-bold text-[rgb(var(--foreground))]">
+                  Container Monitoring
+                </div>
+                <div className="text-xs text-[rgb(var(--foreground-subtle))]">
+                  Real-time monitoring with AI auto-healing
+                </div>
+              </div>
+            </div>
+          </div>
+
           <div className="flex items-center gap-3">
-            {/* Status Indicator */}
-            <div className="relative">
-              <div className="w-10 h-10 rounded-lg bg-blue-500/20 flex items-center justify-center">
-                {isMonitoring && !isPaused ? (
-                  <motion.div
-                    animate={{ scale: [1, 1.2, 1] }}
-                    transition={{ duration: 2, repeat: Infinity }}
-                  >
-                    <Activity className="h-5 w-5 text-blue-400" />
-                  </motion.div>
-                ) : (
-                  <Pause className="h-5 w-5 text-yellow-400" />
-                )}
-              </div>
-              {isMonitoring && !isPaused && (
-                <motion.div
-                  className="absolute -top-1 -right-1 w-3 h-3 bg-green-400 rounded-full"
-                  animate={{ opacity: [1, 0.3, 1] }}
-                  transition={{ duration: 1.5, repeat: Infinity }}
-                />
-              )}
-            </div>
-
-            {/* Status Text */}
-            <div>
-              <h3 className="text-base font-bold text-white flex items-center gap-2">
-                Continuous Monitoring
-                {isMonitoring && (
-                  <span className="text-[10px] px-2 py-0.5 rounded-full bg-green-500/20 text-green-400 font-medium">
-                    {isPaused ? "PAUSED" : "ACTIVE"}
-                  </span>
-                )}
-              </h3>
-              <div className="flex items-center gap-2 text-[10px] text-zinc-400 mt-0.5">
-                <Clock className="h-3 w-3" />
-                <span>{formatUptime(stats.uptime)}</span>
-                <span>•</span>
-                <span>Check #{stats.checkCount}</span>
-              </div>
-            </div>
+            {!isMonitoring ? (
+              <button
+                onClick={handleStartMonitoring}
+                className="px-4 py-2 rounded-lg bg-[rgb(var(--primary))] hover:bg-[rgb(var(--primary-hover))] text-[rgb(var(--primary-foreground))] text-sm font-medium transition-colors flex items-center gap-2"
+              >
+                <Play className="h-4 w-4" />
+                Start Monitoring
+              </button>
+            ) : (
+              <button
+                onClick={handleStopMonitoring}
+                className="px-4 py-2 rounded-lg bg-[rgb(var(--error))] hover:bg-red-600 text-white text-sm font-medium transition-colors flex items-center gap-2"
+              >
+                <Pause className="h-4 w-4" />
+                Stop Monitoring
+              </button>
+            )}
           </div>
-
-          {/* Control Buttons */}
-          <div className="flex items-center gap-2">
-            <button
-              onClick={() => setShowAlerts(!showAlerts)}
-              className={`p-1.5 rounded-lg transition-colors ${
-                showAlerts
-                  ? "bg-blue-500/20 text-blue-400"
-                  : "bg-zinc-800 text-zinc-500"
-              }`}
-              title={showAlerts ? "Hide alerts" : "Show alerts"}
-            >
-              {showAlerts ? (
-                <Eye className="h-3.5 w-3.5" />
-              ) : (
-                <EyeOff className="h-3.5 w-3.5" />
-              )}
-            </button>
-
-            <button
-              onClick={() => setSoundEnabled(!soundEnabled)}
-              className={`p-1.5 rounded-lg transition-colors ${
-                soundEnabled
-                  ? "bg-blue-500/20 text-blue-400"
-                  : "bg-zinc-800 text-zinc-500"
-              }`}
-              title={soundEnabled ? "Mute alerts" : "Unmute alerts"}
-            >
-              {soundEnabled ? (
-                <Bell className="h-3.5 w-3.5" />
-              ) : (
-                <BellOff className="h-3.5 w-3.5" />
-              )}
-            </button>
-
-            <button
-              onClick={togglePause}
-              className={`px-2.5 py-1.5 rounded-lg font-medium text-[10px] transition-colors ${
-                isPaused
-                  ? "bg-green-500/20 text-green-400 hover:bg-green-500/30"
-                  : "bg-yellow-500/20 text-yellow-400 hover:bg-yellow-500/30"
-              }`}
-            >
-              {isPaused ? (
-                <div className="flex items-center gap-1">
-                  <Play className="h-3 w-3" />
-                  Resume
-                </div>
-              ) : (
-                <div className="flex items-center gap-1">
-                  <Pause className="h-3 w-3" />
-                  Pause
-                </div>
-              )}
-            </button>
-          </div>
-        </div>
-
-        {/* ═══════════════════════════════════════════════════════════
-            COMPACT STATS ROW
-        ═══════════════════════════════════════════════════════════ */}
-        <div className="grid grid-cols-4 gap-2">
-          <CompactStat
-            label="Total"
-            value={stats.totalContainers}
-            color="text-zinc-400"
-          />
-          <CompactStat
-            label="Healthy"
-            value={stats.healthyCount}
-            color="text-green-400"
-          />
-          <CompactStat
-            label="Warning"
-            value={stats.warningCount}
-            color="text-yellow-400"
-          />
-          <CompactStat
-            label="Critical"
-            value={stats.criticalCount}
-            color="text-red-400"
-            pulse={stats.criticalCount > 0}
-          />
         </div>
       </motion.div>
 
-      {/* ═══════════════════════════════════════════════════════════════
-          AI FIX PROGRESS BANNER
-      ═══════════════════════════════════════════════════════════════ */}
-      <AnimatePresence>
-        {aiFixProgress && (
-          <motion.div
-            initial={{ height: 0, opacity: 0 }}
-            animate={{ height: "auto", opacity: 1 }}
-            exit={{ height: 0, opacity: 0 }}
-            className="rounded-xl border-2 border-purple-500/20 bg-gradient-to-r from-purple-950/30 to-blue-950/30 overflow-hidden"
-          >
-            <div className="p-4">
-              <div className="flex items-center gap-3 mb-3">
-                <motion.div
-                  animate={{ rotate: 360 }}
-                  transition={{ duration: 2, repeat: Infinity, ease: "linear" }}
-                >
-                  <Brain className="h-5 w-5 text-purple-400" />
-                </motion.div>
-                <div>
-                  <div className="font-semibold text-purple-200">
-                    AI Auto-Recovery in Progress
+      {/* Main Content */}
+      <div className="flex-1 overflow-auto p-6">
+        <div className="max-w-6xl mx-auto space-y-6">
+          {!isMonitoring ? (
+            <motion.div
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              className="text-center py-24"
+            >
+              <div className="inline-flex items-center justify-center w-20 h-20 rounded-2xl surface-elevated border border-[rgb(var(--border))] mb-6">
+                <Activity className="h-10 w-10 text-[rgb(var(--primary))]" />
+              </div>
+              <h2 className="text-2xl font-bold text-[rgb(var(--foreground))] mb-2">
+                Start Container Monitoring
+              </h2>
+              <p className="text-[rgb(var(--foreground-muted))] mb-6 max-w-md mx-auto">
+                Monitor your Docker containers in real-time with AI-powered
+                auto-healing capabilities
+              </p>
+              <button
+                onClick={handleStartMonitoring}
+                className="px-6 py-3 rounded-lg bg-[rgb(var(--primary))] hover:bg-[rgb(var(--primary-hover))] text-[rgb(var(--primary-foreground))] font-medium transition-colors flex items-center gap-2 mx-auto"
+              >
+                <Play className="h-4 w-4" />
+                Start Monitoring
+              </button>
+            </motion.div>
+          ) : (
+            <>
+              {/* Status Card */}
+              <motion.div
+                initial={{ opacity: 0, y: -20 }}
+                animate={{ opacity: 1, y: 0 }}
+                className="rounded-lg border border-[rgb(var(--border))] surface-elevated p-6"
+              >
+                <div className="flex items-center justify-between mb-4">
+                  <div className="flex items-center gap-3">
+                    <div className="relative">
+                      <div className="w-10 h-10 rounded-lg bg-[rgb(var(--primary))]/10 flex items-center justify-center">
+                        {!isPaused ? (
+                          <motion.div
+                            animate={{ scale: [1, 1.1, 1] }}
+                            transition={{ duration: 2, repeat: Infinity }}
+                          >
+                            <Activity className="h-5 w-5 text-[rgb(var(--primary))]" />
+                          </motion.div>
+                        ) : (
+                          <Pause className="h-5 w-5 text-[rgb(var(--warning))]" />
+                        )}
+                      </div>
+                      {!isPaused && (
+                        <motion.div
+                          className="absolute -top-1 -right-1 w-3 h-3 bg-[rgb(var(--success))] rounded-full border-2 border-[rgb(var(--surface-elevated))]"
+                          animate={{ opacity: [1, 0.3, 1] }}
+                          transition={{ duration: 1.5, repeat: Infinity }}
+                        />
+                      )}
+                    </div>
+
+                    <div>
+                      <h3 className="text-base font-bold text-[rgb(var(--foreground))] flex items-center gap-2">
+                        Monitoring Status
+                        <span className="text-[10px] px-2 py-0.5 rounded-full bg-[rgb(var(--success))]/10 text-[rgb(var(--success))] font-medium border border-[rgb(var(--success))]/20">
+                          {isPaused ? "PAUSED" : "ACTIVE"}
+                        </span>
+                      </h3>
+                      <div className="flex items-center gap-2 text-xs text-[rgb(var(--foreground-muted))] mt-1">
+                        <span>{formatUptime(stats.uptime)}</span>
+                        <span>•</span>
+                        <span>Check #{stats.checkCount}</span>
+                      </div>
+                    </div>
                   </div>
-                  <div className="text-xs text-purple-300/80 mt-0.5">
-                    {aiFixProgress.message || "Analyzing logs..."}
+
+                  <div className="flex items-center gap-2">
+                    <button
+                      onClick={() => setShowAlerts(!showAlerts)}
+                      className={`p-2 rounded-lg transition-colors ${
+                        showAlerts
+                          ? "bg-[rgb(var(--primary))]/10 text-[rgb(var(--primary))]"
+                          : "surface text-[rgb(var(--foreground-muted))]"
+                      }`}
+                    >
+                      {showAlerts ? (
+                        <Eye className="h-4 w-4" />
+                      ) : (
+                        <EyeOff className="h-4 w-4" />
+                      )}
+                    </button>
+
+                    <button
+                      onClick={() => setSoundEnabled(!soundEnabled)}
+                      className={`p-2 rounded-lg transition-colors ${
+                        soundEnabled
+                          ? "bg-[rgb(var(--primary))]/10 text-[rgb(var(--primary))]"
+                          : "surface text-[rgb(var(--foreground-muted))]"
+                      }`}
+                    >
+                      {soundEnabled ? (
+                        <Bell className="h-4 w-4" />
+                      ) : (
+                        <BellOff className="h-4 w-4" />
+                      )}
+                    </button>
+
+                    <button
+                      onClick={togglePause}
+                      className={`px-3 py-2 rounded-lg font-medium text-xs transition-colors flex items-center gap-1 ${
+                        isPaused
+                          ? "bg-[rgb(var(--success))]/10 text-[rgb(var(--success))] hover:bg-[rgb(var(--success))]/20"
+                          : "bg-[rgb(var(--warning))]/10 text-[rgb(var(--warning))] hover:bg-[rgb(var(--warning))]/20"
+                      }`}
+                    >
+                      {isPaused ? (
+                        <>
+                          <Play className="h-3 w-3" />
+                          Resume
+                        </>
+                      ) : (
+                        <>
+                          <Pause className="h-3 w-3" />
+                          Pause
+                        </>
+                      )}
+                    </button>
                   </div>
                 </div>
-              </div>
 
-              {aiFixProgress.analysis && (
-                <div className="space-y-2 rounded-lg bg-black/20 p-3 border border-purple-500/20">
-                  <div className="text-xs text-purple-200 font-semibold">
-                    AI Analysis Complete
-                  </div>
-                  <div className="text-xs text-purple-300">
-                    <span className="font-medium">Summary:</span>{" "}
-                    {aiFixProgress.analysis.summary}
-                  </div>
-                  <div className="text-xs text-purple-300">
-                    <span className="font-medium">Root Cause:</span>{" "}
-                    {aiFixProgress.analysis.rootCause}
-                  </div>
-                  <div className="text-xs text-purple-300">
-                    <span className="font-medium">Confidence:</span>{" "}
-                    <span
-                      className={
-                        aiFixProgress.analysis.confidence === "high"
-                          ? "text-green-400"
-                          : aiFixProgress.analysis.confidence === "medium"
-                            ? "text-yellow-400"
-                            : "text-red-400"
-                      }
-                    >
-                      {aiFixProgress.analysis.confidence.toUpperCase()}
-                    </span>
+                <div className="grid grid-cols-4 gap-4">
+                  <StatCard
+                    label="Total"
+                    value={stats.totalContainers}
+                    color="text-[rgb(var(--foreground))]"
+                    bg="surface"
+                  />
+                  <StatCard
+                    label="Healthy"
+                    value={stats.healthyCount}
+                    color="text-[rgb(var(--success))]"
+                    bg="bg-[rgb(var(--success))]/10"
+                  />
+                  <StatCard
+                    label="Warning"
+                    value={stats.warningCount}
+                    color="text-[rgb(var(--warning))]"
+                    bg="bg-[rgb(var(--warning))]/10"
+                  />
+                  <StatCard
+                    label="Critical"
+                    value={stats.criticalCount}
+                    color="text-[rgb(var(--error))]"
+                    bg="bg-[rgb(var(--error))]/10"
+                    pulse={stats.criticalCount > 0}
+                  />
+                </div>
+              </motion.div>
+
+              {/* AI Fix Progress */}
+              <AnimatePresence>
+                {aiFixProgress && (
+                  <motion.div
+                    initial={{ height: 0, opacity: 0 }}
+                    animate={{ height: "auto", opacity: 1 }}
+                    exit={{ height: 0, opacity: 0 }}
+                    className="rounded-lg border border-purple-500/20 bg-gradient-to-r from-purple-500/10 to-blue-500/10 overflow-hidden"
+                  >
+                    <div className="p-6">
+                      <div className="flex items-center gap-3 mb-4">
+                        <motion.div
+                          animate={{ rotate: 360 }}
+                          transition={{
+                            duration: 2,
+                            repeat: Infinity,
+                            ease: "linear",
+                          }}
+                        >
+                          <Brain className="h-5 w-5 text-purple-400" />
+                        </motion.div>
+                        <div>
+                          <div className="font-semibold text-[rgb(var(--foreground))]">
+                            AI Auto-Recovery in Progress
+                          </div>
+                          <div className="text-xs text-[rgb(var(--foreground-muted))] mt-0.5">
+                            {aiFixProgress.message || "Analyzing logs..."}
+                          </div>
+                        </div>
+                      </div>
+
+                      {aiFixProgress.analysis && (
+                        <div className="space-y-3 rounded-lg surface-elevated p-4 border border-purple-500/20">
+                          <div className="text-xs font-semibold text-purple-400">
+                            AI Analysis Complete
+                          </div>
+                          <div className="text-xs text-[rgb(var(--foreground))]">
+                            <span className="font-medium">Summary:</span>{" "}
+                            {aiFixProgress.analysis.summary}
+                          </div>
+                          <div className="text-xs text-[rgb(var(--foreground))]">
+                            <span className="font-medium">Root Cause:</span>{" "}
+                            {aiFixProgress.analysis.rootCause}
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  </motion.div>
+                )}
+              </AnimatePresence>
+
+              {/* Container Issues */}
+              {(criticalContainers.length > 0 ||
+                warningContainers.length > 0) && (
+                <div className="space-y-3">
+                  <h4 className="text-sm font-semibold text-[rgb(var(--foreground))] flex items-center gap-2">
+                    <AlertTriangle className="h-4 w-4 text-[rgb(var(--warning))]" />
+                    Issues Detected (
+                    {criticalContainers.length + warningContainers.length})
+                  </h4>
+
+                  <div className="space-y-2">
+                    {criticalContainers.map((metric, index) => (
+                      <ContainerCard
+                        key={index}
+                        metric={metric}
+                        index={index}
+                        isExpanded={expandedContainer === metric.containerName}
+                        onToggle={() =>
+                          setExpandedContainer(
+                            expandedContainer === metric.containerName
+                              ? null
+                              : metric.containerName,
+                          )
+                        }
+                        onAIFix={handleAIFix}
+                        isFixing={fixingContainer === metric.containerName}
+                      />
+                    ))}
+
+                    {warningContainers.map((metric, index) => (
+                      <ContainerCard
+                        key={metric.containerName}
+                        metric={metric}
+                        index={index + criticalContainers.length}
+                        isExpanded={expandedContainer === metric.containerName}
+                        onToggle={() =>
+                          setExpandedContainer(
+                            expandedContainer === metric.containerName
+                              ? null
+                              : metric.containerName,
+                          )
+                        }
+                        onAIFix={handleAIFix}
+                        isFixing={fixingContainer === metric.containerName}
+                      />
+                    ))}
                   </div>
                 </div>
               )}
-            </div>
-          </motion.div>
-        )}
-      </AnimatePresence>
 
-      {/* ═══════════════════════════════════════════════════════════════
-          CONTAINER ISSUES (CRITICAL & WARNING ONLY)
-      ═══════════════════════════════════════════════════════════════ */}
-      {(criticalContainers.length > 0 || warningContainers.length > 0) && (
-        <div className="space-y-2">
-          <h4 className="text-xs font-semibold text-zinc-400 flex items-center gap-2">
-            <AlertTriangle className="h-3.5 w-3.5" />
-            Issues Detected (
-            {criticalContainers.length + warningContainers.length})
-          </h4>
+              {/* Healthy Containers */}
+              {healthyContainers.length > 0 && (
+                <div className="rounded-lg border border-[rgb(var(--success))]/20 bg-[rgb(var(--success))]/10 p-4">
+                  <div className="flex items-center gap-2 text-sm text-[rgb(var(--success))]">
+                    <CheckCircle2 className="h-4 w-4" />
+                    <span className="font-medium">
+                      {healthyContainers.length} Healthy Container
+                      {healthyContainers.length !== 1 ? "s" : ""}
+                    </span>
+                  </div>
+                  <div className="text-xs text-[rgb(var(--success))]/80 mt-1">
+                    {healthyContainers.map((c) => c.containerName).join(", ")}
+                  </div>
+                </div>
+              )}
 
-          <div className="space-y-1.5">
-            {/* Critical Containers */}
-            {criticalContainers.map((metric, index) => (
-              <ContainerIssueCard
-                key={index}
-                metric={metric}
-                index={index}
-                isExpanded={expandedContainer === metric.containerName}
-                onToggle={() =>
-                  setExpandedContainer(
-                    expandedContainer === metric.containerName
-                      ? null
-                      : metric.containerName,
-                  )
-                }
-                onAIFix={handleAIFix}
-                isFixing={fixingContainer === metric.containerName}
-              />
-            ))}
+              {/* Recent Alerts */}
+              {showAlerts && alerts.length > 0 && (
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between">
+                    <h4 className="text-sm font-semibold text-[rgb(var(--foreground))] flex items-center gap-2">
+                      <Bell className="h-4 w-4" />
+                      Recent Alerts ({alerts.length})
+                    </h4>
+                    <button
+                      onClick={() => setAlerts([])}
+                      className="text-xs text-[rgb(var(--foreground-subtle))] hover:text-[rgb(var(--foreground))]"
+                    >
+                      Clear
+                    </button>
+                  </div>
 
-            {/* Warning Containers */}
-            {warningContainers.map((metric, index) => (
-              <ContainerIssueCard
-                key={metric.containerName}
-                metric={metric}
-                index={index + criticalContainers.length}
-                isExpanded={expandedContainer === metric.containerName}
-                onToggle={() =>
-                  setExpandedContainer(
-                    expandedContainer === metric.containerName
-                      ? null
-                      : metric.containerName,
-                  )
-                }
-                onAIFix={handleAIFix}
-                isFixing={fixingContainer === metric.containerName}
-              />
-            ))}
-          </div>
+                  <div className="space-y-1.5 max-h-48 overflow-y-auto">
+                    {alerts
+                      .slice()
+                      .reverse()
+                      .map((alert, index) => (
+                        <AlertCard
+                          key={alert.timestamp + index}
+                          alert={alert}
+                        />
+                      ))}
+                  </div>
+                </div>
+              )}
+            </>
+          )}
         </div>
-      )}
-
-      {/* ═══════════════════════════════════════════════════════════════
-          HEALTHY CONTAINERS (COLLAPSED BY DEFAULT)
-      ═══════════════════════════════════════════════════════════════ */}
-      {healthyContainers.length > 0 && (
-        <div className="rounded-lg border border-green-500/20 bg-green-500/5 p-3">
-          <div className="flex items-center gap-2 text-sm text-green-400">
-            <CheckCircle2 className="h-4 w-4" />
-            <span className="font-medium">
-              {healthyContainers.length} Healthy Container
-              {healthyContainers.length !== 1 ? "s" : ""}
-            </span>
-          </div>
-          <div className="text-xs text-zinc-500 mt-1">
-            {healthyContainers.map((c) => c.containerName).join(", ")}
-          </div>
-        </div>
-      )}
-
-      {/* ═══════════════════════════════════════════════════════════════
-          RECENT ALERTS (ONLY IF ENABLED)
-      ═══════════════════════════════════════════════════════════════ */}
-      {showAlerts && alerts.length > 0 && (
-        <div className="space-y-1.5">
-          <div className="flex items-center justify-between">
-            <h4 className="text-xs font-semibold text-zinc-400 flex items-center gap-2">
-              <Bell className="h-3.5 w-3.5" />
-              Recent Alerts ({alerts.length})
-            </h4>
-            <button
-              onClick={() => setAlerts([])}
-              className="text-[10px] text-zinc-500 hover:text-zinc-300 transition-colors"
-            >
-              Clear
-            </button>
-          </div>
-
-          <div className="space-y-1 max-h-32 overflow-y-auto">
-            {alerts
-              .slice()
-              .reverse()
-              .map((alert, index) => (
-                <AlertCard key={alert.timestamp + index} alert={alert} />
-              ))}
-          </div>
-        </div>
-      )}
+      </div>
     </div>
   );
 }
 
-// ====================================
-// 📊 COMPACT STAT COMPONENT
-// ====================================
-
-function CompactStat({
+function StatCard({
   label,
   value,
   color,
+  bg,
   pulse = false,
 }: {
   label: string;
   value: number;
   color: string;
+  bg: string;
   pulse?: boolean;
 }) {
   return (
-    <div className="rounded-lg bg-white/[0.02] border border-white/5 p-2">
-      <div className="flex items-center justify-between">
-        <span className="text-[10px] text-zinc-500">{label}</span>
+    <div className={`rounded-lg ${bg} border border-[rgb(var(--border))] p-3`}>
+      <div className="flex items-center justify-between mb-1">
+        <span className="text-xs text-[rgb(var(--foreground-muted))]">
+          {label}
+        </span>
         {pulse && value > 0 && (
           <motion.div
-            className="w-1.5 h-1.5 bg-red-400 rounded-full"
+            className="w-2 h-2 bg-[rgb(var(--error))] rounded-full"
             animate={{ opacity: [1, 0.3, 1] }}
             transition={{ duration: 1, repeat: Infinity }}
           />
         )}
       </div>
-      <div className={`text-lg font-bold ${color}`}>{value}</div>
+      <div className={`text-2xl font-bold ${color}`}>{value}</div>
     </div>
   );
 }
 
-// ====================================
-// 🐳 CONTAINER ISSUE CARD (WITH REAL LOGS & AI FIX)
-// ====================================
-
-function ContainerIssueCard({
+function ContainerCard({
   metric,
   index,
   isExpanded,
@@ -753,28 +576,28 @@ function ContainerIssueCard({
   isFixing: boolean;
 }) {
   const [copiedLogs, setCopiedLogs] = useState(false);
-  console.log(`metrics `, metric);
+
   const getSeverityConfig = () => {
     switch (metric.severity) {
       case "CRITICAL":
         return {
-          bg: "bg-red-500/10",
-          border: "border-red-500/30",
-          text: "text-red-400",
+          bg: "bg-[rgb(var(--error))]/10",
+          border: "border-[rgb(var(--error))]/20",
+          text: "text-[rgb(var(--error))]",
           icon: XCircle,
         };
       case "WARNING":
         return {
-          bg: "bg-yellow-500/10",
-          border: "border-yellow-500/30",
-          text: "text-yellow-400",
+          bg: "bg-[rgb(var(--warning))]/10",
+          border: "border-[rgb(var(--warning))]/20",
+          text: "text-[rgb(var(--warning))]",
           icon: AlertTriangle,
         };
       default:
         return {
-          bg: "bg-green-500/10",
-          border: "border-green-500/30",
-          text: "text-green-400",
+          bg: "bg-[rgb(var(--success))]/10",
+          border: "border-[rgb(var(--success))]/20",
+          text: "text-[rgb(var(--success))]",
           icon: CheckCircle2,
         };
     }
@@ -791,37 +614,27 @@ function ContainerIssueCard({
     }
   };
 
-  // Always show logs section if container is unhealthy
   const hasLogs = metric.logs && metric.logs !== "No logs available";
-  const shouldShowLogsSection = metric.severity !== "HEALTHY";
-
-  console.log(`📋 Card for ${metric.containerName}:`, {
-    hasLogs,
-    logsLength: metric.logs?.length,
-    shouldShowLogsSection,
-    isExpanded,
-  });
 
   return (
     <motion.div
       initial={{ opacity: 0, y: -10 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ delay: index * 0.03 }}
-      className={`rounded-lg border-2 ${config.border} ${config.bg} overflow-hidden`}
+      className={`rounded-lg border ${config.border} ${config.bg} overflow-hidden`}
     >
-      {/* Header - ALWAYS CLICKABLE */}
       <button
         onClick={onToggle}
-        className="w-full p-3 text-left hover:bg-white/[0.02] transition-colors"
+        className="w-full p-4 text-left hover:bg-white/5 transition-colors"
       >
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2 flex-1 min-w-0">
             <Icon className={`h-4 w-4 ${config.text} flex-shrink-0`} />
-            <span className="font-semibold text-white text-sm truncate">
+            <span className="font-semibold text-[rgb(var(--foreground))] text-sm truncate">
               {metric.containerName}
             </span>
             {metric.issues && (
-              <span className="text-[10px] px-1.5 py-0.5 rounded bg-white/10 text-zinc-400 flex items-center gap-1">
+              <span className="text-[10px] px-2 py-0.5 rounded-full surface text-[rgb(var(--foreground-muted))] border border-[rgb(var(--border))] flex items-center gap-1">
                 <FileText className="h-2.5 w-2.5" />
                 {metric.issues.length} issue
                 {metric.issues.length !== 1 ? "s" : ""}
@@ -834,86 +647,91 @@ function ContainerIssueCard({
               {metric.severity}
             </span>
             <ChevronDown
-              className={`h-4 w-4 text-zinc-600 transition-transform ${
-                isExpanded ? "" : "-rotate-90"
-              }`}
+              className={`h-4 w-4 text-[rgb(var(--foreground-subtle))] transition-transform ${isExpanded ? "" : "-rotate-90"}`}
             />
           </div>
         </div>
 
-        {/* Quick Stats */}
-        <div className="grid grid-cols-4 gap-2 mt-2 text-[10px]">
+        <div className="grid grid-cols-4 gap-3 mt-3 text-xs">
           <div>
-            <div className="text-zinc-500">Docker</div>
+            <div className="text-[rgb(var(--foreground-subtle))] mb-0.5">
+              Docker
+            </div>
             <div
               className={
-                metric?.httpHealthStatus?.healthy
-                  ? "text-green-400"
-                  : "text-red-400"
+                metric.httpHealthStatus?.healthy
+                  ? "text-[rgb(var(--success))]"
+                  : "text-[rgb(var(--error))]"
               }
             >
-              {metric?.httpHealthStatus?.healthy ? "✅ OK" : "❌ Down"}
+              {metric.httpHealthStatus?.healthy ? "✓ OK" : "✗ Down"}
             </div>
           </div>
           <div>
-            <div className="text-zinc-500">App</div>
+            <div className="text-[rgb(var(--foreground-subtle))] mb-0.5">
+              App
+            </div>
             <div
               className={
-                metric?.applicationHealthy ? "text-green-400" : "text-red-400"
+                metric.applicationHealthy
+                  ? "text-[rgb(var(--success))]"
+                  : "text-[rgb(var(--error))]"
               }
             >
-              {metric?.applicationHealthy ? "✅ OK" : "❌ Fail"}
+              {metric.applicationHealthy ? "✓ OK" : "✗ Fail"}
             </div>
           </div>
           <div>
-            <div className="text-zinc-500">CPU</div>
+            <div className="text-[rgb(var(--foreground-subtle))] mb-0.5">
+              CPU
+            </div>
             <div
               className={
-                parseFloat(metric?.cpuPercent) > 80
-                  ? "text-yellow-400"
-                  : "text-green-400"
+                parseFloat(metric.cpuPercent) > 80
+                  ? "text-[rgb(var(--warning))]"
+                  : "text-[rgb(var(--success))]"
               }
             >
-              {metric?.cpuPercent}
+              {metric.cpuPercent}
             </div>
           </div>
           <div>
-            <div className="text-zinc-500">Mem</div>
+            <div className="text-[rgb(var(--foreground-subtle))] mb-0.5">
+              Memory
+            </div>
             <div
               className={
-                parseFloat(metric?.memPercent) > 80
-                  ? "text-yellow-400"
-                  : "text-green-400"
+                parseFloat(metric.memPercent) > 80
+                  ? "text-[rgb(var(--warning))]"
+                  : "text-[rgb(var(--success))]"
               }
             >
-              {metric?.memPercent}
+              {metric.memPercent}
             </div>
           </div>
         </div>
       </button>
 
-      {/* Expanded Details - WITH LOGS ALWAYS VISIBLE */}
       <AnimatePresence>
         {isExpanded && (
           <motion.div
             initial={{ height: 0, opacity: 0 }}
             animate={{ height: "auto", opacity: 1 }}
             exit={{ height: 0, opacity: 0 }}
-            className="border-t border-white/5 bg-black/20 overflow-hidden"
+            className="border-t border-[rgb(var(--border))] surface-elevated overflow-hidden"
           >
-            <div className="p-3 space-y-3">
-              {/* Issues List */}
-              {metric?.issues && metric?.issues?.length > 0 && (
+            <div className="p-4 space-y-4">
+              {metric.issues && metric.issues.length > 0 && (
                 <div>
-                  <div className="text-xs font-semibold text-zinc-400 mb-1.5 flex items-center gap-1">
+                  <div className="text-xs font-semibold text-[rgb(var(--foreground))] mb-2 flex items-center gap-1">
                     <AlertCircle className="h-3 w-3" />
                     Detected Issues
                   </div>
-                  <div className="space-y-1 max-h-32 overflow-y-auto rounded-md bg-black/20 p-2 border border-red-500/20">
-                    {metric?.issues?.map((issue, i) => (
+                  <div className="space-y-1 max-h-32 overflow-y-auto rounded-lg bg-[rgb(var(--error))]/10 p-3 border border-[rgb(var(--error))]/20">
+                    {metric.issues.map((issue, i) => (
                       <div
                         key={i}
-                        className="text-[10px] text-red-300 font-mono leading-relaxed"
+                        className="text-xs text-[rgb(var(--error))] font-mono leading-relaxed"
                       >
                         {issue}
                       </div>
@@ -921,41 +739,45 @@ function ContainerIssueCard({
                   </div>
                 </div>
               )}
-              {/* HTTP Health */}
-              {metric?.httpHealthStatus && (
-                <div className="rounded-md bg-white/5 p-2 space-y-1">
-                  <div className="flex items-center gap-2 text-xs text-zinc-400">
-                    {metric?.httpHealthStatus?.healthy ? (
-                      <Wifi className="h-3 w-3 text-green-400" />
+
+              {metric.httpHealthStatus && (
+                <div className="rounded-lg surface p-3 space-y-2">
+                  <div className="flex items-center gap-2 text-xs text-[rgb(var(--foreground))]">
+                    {metric.httpHealthStatus.healthy ? (
+                      <Wifi className="h-3 w-3 text-[rgb(var(--success))]" />
                     ) : (
-                      <WifiOff className="h-3 w-3 text-red-400" />
+                      <WifiOff className="h-3 w-3 text-[rgb(var(--error))]" />
                     )}
-                    <span className="font-medium">HTTP Health</span>
+                    <span className="font-medium">HTTP Health Check</span>
                   </div>
-                  {metric?.httpHealthStatus?.checkedUrl && (
-                    <div className="text-[10px] text-zinc-500">
+                  {metric.httpHealthStatus.checkedUrl && (
+                    <div className="text-xs text-[rgb(var(--foreground-muted))]">
                       <Globe className="h-2.5 w-2.5 inline mr-1" />
-                      {metric?.httpHealthStatus?.checkedUrl}
+                      {metric.httpHealthStatus.checkedUrl}
                     </div>
                   )}
-                  {metric?.httpHealthStatus?.statusCode && (
-                    <div className="flex items-center gap-2 text-[10px]">
-                      <span className="text-zinc-500">Status:</span>
+                  {metric.httpHealthStatus.statusCode && (
+                    <div className="flex items-center gap-2 text-xs">
+                      <span className="text-[rgb(var(--foreground-subtle))]">
+                        Status:
+                      </span>
                       <span
                         className={
-                          metric?.httpHealthStatus?.statusCode >= 200 &&
-                          metric?.httpHealthStatus?.statusCode < 300
-                            ? "text-green-400"
-                            : "text-red-400"
+                          metric.httpHealthStatus.statusCode >= 200 &&
+                          metric.httpHealthStatus.statusCode < 300
+                            ? "text-[rgb(var(--success))]"
+                            : "text-[rgb(var(--error))]"
                         }
                       >
-                        {metric?.httpHealthStatus?.statusCode}
+                        {metric.httpHealthStatus.statusCode}
                       </span>
-                      {metric?.httpHealthStatus?.responseTime && (
+                      {metric.httpHealthStatus.responseTime && (
                         <>
-                          <span className="text-zinc-600">•</span>
-                          <span className="text-zinc-400">
-                            {metric?.httpHealthStatus?.responseTime}ms
+                          <span className="text-[rgb(var(--foreground-subtle))]">
+                            •
+                          </span>
+                          <span className="text-[rgb(var(--foreground-muted))]">
+                            {metric.httpHealthStatus.responseTime}ms
                           </span>
                         </>
                       )}
@@ -963,76 +785,56 @@ function ContainerIssueCard({
                   )}
                 </div>
               )}
-              {/* Container Logs - ALWAYS SHOW IF AVAILABLE */}
-              {shouldShowLogsSection && (
+
+              {hasLogs && (
                 <div>
-                  <div className="flex items-center justify-between mb-1.5">
-                    <div className="text-xs font-semibold text-zinc-400 flex items-center gap-1">
+                  <div className="flex items-center justify-between mb-2">
+                    <div className="text-xs font-semibold text-[rgb(var(--foreground))] flex items-center gap-1">
                       <Terminal className="h-3 w-3" />
-                      Container Logs (Last 100 lines)
+                      Container Logs
                     </div>
-                    {hasLogs && (
-                      <button
-                        onClick={copyLogs}
-                        className="text-[10px] px-2 py-1 rounded bg-white/5 hover:bg-white/10 text-zinc-400 hover:text-white transition-colors flex items-center gap-1"
-                      >
-                        {copiedLogs ? (
-                          <>
-                            <Check className="h-3 w-3" />
-                            Copied
-                          </>
-                        ) : (
-                          <>
-                            <Copy className="h-3 w-3" />
-                            Copy
-                          </>
-                        )}
-                      </button>
-                    )}
+                    <button
+                      onClick={copyLogs}
+                      className="text-xs px-2 py-1 rounded-lg surface hover:bg-[rgb(var(--primary))]/10 text-[rgb(var(--foreground-muted))] hover:text-[rgb(var(--primary))] transition-colors flex items-center gap-1"
+                    >
+                      {copiedLogs ? (
+                        <>
+                          <Check className="h-3 w-3" />
+                          Copied
+                        </>
+                      ) : (
+                        <>
+                          <Copy className="h-3 w-3" />
+                          Copy
+                        </>
+                      )}
+                    </button>
                   </div>
-                  <div className="rounded-md bg-black/60 border border-zinc-800 p-3 max-h-64 overflow-y-auto">
-                    {hasLogs ? (
-                      <pre className="text-[9px] font-mono text-zinc-300 whitespace-pre-wrap leading-relaxed">
-                        {metric?.logs}
-                      </pre>
-                    ) : (
-                      <div className="text-xs text-zinc-500 italic text-center py-4">
-                        No logs available for this container
-                      </div>
-                    )}
+                  <div className="rounded-lg bg-black/60 border border-[rgb(var(--border))] p-3 max-h-64 overflow-y-auto">
+                    <pre className="text-[10px] font-mono text-gray-300 whitespace-pre-wrap leading-relaxed">
+                      {metric.logs}
+                    </pre>
                   </div>
                 </div>
               )}
 
               <button
-                onClick={() => {
-                  console.log(
-                    `🤖 [AI Fix Button] Clicked for container:`,
-                    metric?.containerName,
-                  );
-                  if (!metric?.containerName) {
-                    console.error(
-                      "❌ [AI Fix Button] Container name is undefined!",
-                    );
-                    return;
-                  }
-                  onAIFix(metric?.containerName);
-                }}
+                onClick={() => onAIFix(metric.containerName)}
                 disabled={isFixing}
-                className={`w-full rounded-lg px-3 py-2.5 font-medium text-xs transition-all flex items-center justify-center gap-2 ${
+                className={`w-full rounded-lg px-4 py-3 font-medium text-sm transition-all flex items-center justify-center gap-2 ${
                   isFixing
-                    ? "bg-blue-500/20 text-blue-400 cursor-wait"
-                    : "bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-700 hover:to-blue-700 text-white shadow-lg"
+                    ? "bg-[rgb(var(--primary))]/10 text-[rgb(var(--primary))] cursor-wait"
+                    : "bg-[rgb(var(--primary))] hover:bg-[rgb(var(--primary-hover))] text-[rgb(var(--primary-foreground))] shadow-sm hover:shadow-md"
                 }`}
               >
                 {isFixing ? (
                   <>
-                    <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                    <Loader2 className="h-4 w-4 animate-spin" />
                     AI is analyzing and fixing...
                   </>
                 ) : (
                   <>
-                    <Sparkles className="h-3.5 w-3.5" />
+                    <Sparkles className="h-4 w-4" />
                     Fix with AI Auto-Recovery
                   </>
                 )}
@@ -1045,30 +847,28 @@ function ContainerIssueCard({
   );
 }
 
-// ====================================
-// 🚨 ALERT CARD COMPONENT
-// ====================================
-
 function AlertCard({ alert }: { alert: MonitorAlert }) {
   const getConfig = () => {
     switch (alert.severity) {
       case "critical":
         return {
-          bg: "bg-red-500/5",
-          border: "border-red-500/20",
-          icon: <XCircle className="h-3 w-3 text-red-400" />,
+          bg: "bg-[rgb(var(--error))]/10",
+          border: "border-[rgb(var(--error))]/20",
+          icon: <XCircle className="h-3 w-3 text-[rgb(var(--error))]" />,
         };
       case "warning":
         return {
-          bg: "bg-yellow-500/5",
-          border: "border-yellow-500/20",
-          icon: <AlertTriangle className="h-3 w-3 text-yellow-400" />,
+          bg: "bg-[rgb(var(--warning))]/10",
+          border: "border-[rgb(var(--warning))]/20",
+          icon: (
+            <AlertTriangle className="h-3 w-3 text-[rgb(var(--warning))]" />
+          ),
         };
       default:
         return {
-          bg: "bg-blue-500/5",
-          border: "border-blue-500/20",
-          icon: <CheckCircle2 className="h-3 w-3 text-blue-400" />,
+          bg: "bg-[rgb(var(--primary))]/10",
+          border: "border-[rgb(var(--primary))]/20",
+          icon: <CheckCircle2 className="h-3 w-3 text-[rgb(var(--primary))]" />,
         };
     }
   };
@@ -1079,13 +879,15 @@ function AlertCard({ alert }: { alert: MonitorAlert }) {
     <motion.div
       initial={{ opacity: 0, x: -10 }}
       animate={{ opacity: 1, x: 0 }}
-      className={`rounded-lg p-2 border ${config.border} ${config.bg}`}
+      className={`rounded-lg p-3 border ${config.border} ${config.bg}`}
     >
       <div className="flex items-start gap-2">
         <div className="flex-shrink-0 mt-0.5">{config.icon}</div>
         <div className="flex-1 min-w-0">
-          <div className="text-xs text-white">{alert.message}</div>
-          <div className="text-[10px] text-zinc-500 mt-0.5">
+          <div className="text-xs text-[rgb(var(--foreground))]">
+            {alert.message}
+          </div>
+          <div className="text-[10px] text-[rgb(var(--foreground-subtle))] mt-0.5">
             {new Date(alert.timestamp).toLocaleTimeString()}
           </div>
         </div>
