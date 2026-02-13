@@ -51,9 +51,6 @@ type RestartApprovalRequest = {
   reason: string;
 };
 
-// ====================================
-// 🎨 MAIN COMPONENT
-// ====================================
 
 export default function MonitorDashboard({ onClose }: { onClose: () => void }) {
   const [socket, setSocket] = useState<Socket | null>(null);
