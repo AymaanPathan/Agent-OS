@@ -1,7 +1,7 @@
 import { Server, Socket } from "socket.io";
 import { executeMCPTool } from "../engine/tools/mcpTools.registry";
 
-// Store pending restart approvals
+// Store pending restart approvals - single response only
 const pendingRestartApprovals = new Map<
   string,
   {
@@ -9,6 +9,7 @@ const pendingRestartApprovals = new Map<
     reject: (error: Error) => void;
     containerName: string;
     sessionId: string;
+    resolved: boolean; // Prevent multiple responses
   }
 >();
 
@@ -44,6 +45,11 @@ export function setupMonitorSocketHandlers(io: Server) {
         console.log("🧠 [Monitor Socket] AI analysis requested:", data);
 
         try {
+          // Emit analyzing state
+          io.to(data.sessionId).emit("ai-analysis-started", {
+            containerName: data.containerName,
+          });
+
           // Fetch logs first
           const logsResult = await executeMCPTool("tool.dockerLogs", {
             containerName: data.containerName,
@@ -68,7 +74,7 @@ export function setupMonitorSocketHandlers(io: Server) {
           });
         } catch (error: any) {
           console.error("❌ [Monitor Socket] AI analysis error:", error);
-          socket.emit("ai-analysis-error", {
+          io.to(data.sessionId).emit("ai-analysis-error", {
             containerName: data.containerName,
             error: error.message,
           });
@@ -96,63 +102,88 @@ export function setupMonitorSocketHandlers(io: Server) {
           timestamp: new Date().toISOString(),
         });
 
-        // Wait for approval with timeout
-        const approved = await waitForRestartApproval(
-          approvalId,
-          data.containerName,
-          data.sessionId,
-          30000, // 30 second timeout
-        );
-
-        if (approved) {
-          console.log(
-            `✅ [Monitor Socket] Restart approved for ${data.containerName}`,
+        try {
+          // Wait for approval with timeout
+          const approved = await waitForRestartApproval(
+            approvalId,
+            data.containerName,
+            data.sessionId,
+            30000, // 30 second timeout
           );
 
-          // Execute restart
-          try {
+          console.log(
+            `📋 [Monitor Socket] Approval result: ${approved ? "APPROVED" : "REJECTED"}`,
+          );
+
+          if (approved) {
+            console.log(
+              `✅ [Monitor Socket] Starting restart for ${data.containerName}`,
+            );
+
+            // Emit restarting state
+            io.to(data.sessionId).emit("container-restarting", {
+              containerName: data.containerName,
+            });
+
+            // Execute restart
             const result = await executeMCPTool("tool.dockerRestart", {
               containerName: data.containerName,
               timeout: 30,
             });
 
+            console.log(
+              `📊 [Monitor Socket] Restart result:`,
+              JSON.stringify(result, null, 2),
+            );
+
             io.to(data.sessionId).emit("restart-completed", {
               containerName: data.containerName,
               success: result.success,
               message: result.success
-                ? `Container ${data.containerName} restarted successfully`
-                : `Failed to restart ${data.containerName}: ${result.error}`,
+                ? `✅ Container ${data.containerName} restarted successfully`
+                : `❌ Failed to restart ${data.containerName}: ${result.error || "Unknown error"}`,
             });
-          } catch (error: any) {
-            io.to(data.sessionId).emit("restart-completed", {
+          } else {
+            console.log(
+              `❌ [Monitor Socket] Restart rejected for ${data.containerName}`,
+            );
+
+            io.to(data.sessionId).emit("restart-rejected", {
               containerName: data.containerName,
-              success: false,
-              message: `Restart failed: ${error.message}`,
+              message: `Restart request for ${data.containerName} was rejected by user`,
             });
           }
-        } else {
-          console.log(
-            `❌ [Monitor Socket] Restart rejected for ${data.containerName}`,
-          );
-
-          io.to(data.sessionId).emit("restart-rejected", {
+        } catch (error: any) {
+          console.error("❌ [Monitor Socket] Restart flow error:", error);
+          io.to(data.sessionId).emit("restart-error", {
             containerName: data.containerName,
-            message: `Restart request for ${data.containerName} was rejected`,
+            message: `Error during restart: ${error.message}`,
           });
         }
       },
     );
 
-    // Handle restart approval response
+    // Handle restart approval response - SINGLE RESPONSE ONLY
     socket.on(
       "restart-approval-response",
       (data: { approvalId: string; approved: boolean }) => {
         console.log("📨 [Monitor Socket] Approval response:", data);
 
         const pending = pendingRestartApprovals.get(data.approvalId);
-        if (pending) {
+
+        if (pending && !pending.resolved) {
+          // Mark as resolved to prevent duplicate responses
+          pending.resolved = true;
           pending.resolve(data.approved);
           pendingRestartApprovals.delete(data.approvalId);
+
+          console.log(
+            `✅ [Monitor Socket] Approval processed: ${data.approved ? "APPROVED" : "REJECTED"}`,
+          );
+        } else {
+          console.log(
+            `⚠️ [Monitor Socket] Approval already processed or not found: ${data.approvalId}`,
+          );
         }
       },
     );
@@ -188,7 +219,7 @@ export function setupMonitorSocketHandlers(io: Server) {
             },
           });
 
-          socket.emit("slack-notification-sent", {
+          io.to(data.sessionId).emit("slack-notification-sent", {
             success: result.success,
             containerName: data.containerName,
             channel: data.channel,
@@ -213,7 +244,7 @@ export function setupMonitorSocketHandlers(io: Server) {
 }
 
 /**
- * Wait for restart approval with timeout
+ * Wait for restart approval with timeout - SINGLE RESPONSE
  */
 function waitForRestartApproval(
   approvalId: string,
@@ -223,8 +254,15 @@ function waitForRestartApproval(
 ): Promise<boolean> {
   return new Promise((resolve, reject) => {
     const timeoutId = setTimeout(() => {
-      pendingRestartApprovals.delete(approvalId);
-      resolve(false); // Default to reject on timeout
+      const pending = pendingRestartApprovals.get(approvalId);
+      if (pending && !pending.resolved) {
+        pending.resolved = true;
+        pendingRestartApprovals.delete(approvalId);
+        console.log(
+          `⏰ [Monitor Socket] Approval timeout for ${containerName}`,
+        );
+        resolve(false); // Default to reject on timeout
+      }
     }, timeout);
 
     pendingRestartApprovals.set(approvalId, {
@@ -235,6 +273,7 @@ function waitForRestartApproval(
       reject,
       containerName,
       sessionId,
+      resolved: false, // Track if already resolved
     });
   });
 }
