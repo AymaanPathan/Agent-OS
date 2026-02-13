@@ -51,7 +51,6 @@ type RestartApprovalRequest = {
   reason: string;
 };
 
-
 export default function MonitorDashboard({ onClose }: { onClose: () => void }) {
   const [socket, setSocket] = useState<Socket | null>(null);
   const [metrics, setMetrics] = useState<ContainerMetric[]>([]);
@@ -74,10 +73,9 @@ export default function MonitorDashboard({ onClose }: { onClose: () => void }) {
 
   // Socket connection
   useEffect(() => {
-    const newSocket = io(
-      process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000",
-      { transports: ["websocket", "polling"] },
-    );
+    const newSocket = io(process.env.NEXT_PUBLIC_API_URL, {
+      transports: ["websocket", "polling"],
+    });
 
     setSocket(newSocket);
 
@@ -161,7 +159,7 @@ export default function MonitorDashboard({ onClose }: { onClose: () => void }) {
   const handleStartMonitoring = async () => {
     try {
       const response = await fetch(
-        `${process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000"}/api/monitor/start`,
+        `${process.env.NEXT_PUBLIC_API_URL}/api/monitor/start`,
         {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -190,7 +188,7 @@ export default function MonitorDashboard({ onClose }: { onClose: () => void }) {
   const handleStopMonitoring = async () => {
     try {
       const response = await fetch(
-        `${process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000"}/api/monitor/stop`,
+        `${process.env.NEXT_PUBLIC_API_URL}/api/monitor/stop`,
         {
           method: "POST",
           headers: { "Content-Type": "application/json" },
