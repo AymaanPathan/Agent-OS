@@ -20,13 +20,15 @@ import { handleMcp } from "./mcp/health-mcp/mcp.route";
 const app = express();
 const httpServer = createServer(app);
 
+const allowedOrigins = [
+  process.env.FRONTEND_URL,
+  process.env.FRONTEND_URL_PROD,
+].filter((url): url is string => url !== undefined);
+
 // Initialize Socket.IO
 export const io = new Server(httpServer, {
   cors: {
-    origin: [
-      process.env.FRONTEND_URL || "http://localhost:3000",
-      "https://agent-b9cndtpxg-aymaanpathans-projects.vercel.app",
-    ],
+    origin: allowedOrigins,
     methods: ["GET", "POST"],
     credentials: true,
   },
@@ -36,10 +38,7 @@ export const io = new Server(httpServer, {
 // Middleware - CORS first
 app.use(
   cors({
-    origin: [
-      process.env.FRONTEND_URL || "http://localhost:3000",
-      "https://agent-b9cndtpxg-aymaanpathans-projects.vercel.app",
-    ],
+    origin: allowedOrigins || "*",
     credentials: true,
   }),
 );
