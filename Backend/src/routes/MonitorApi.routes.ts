@@ -1,6 +1,7 @@
 import express from "express";
 import { ContinuousMonitor } from "../engine/tools/monitor.tool";
 import { setupMonitorSocketBridge } from "../lib/monitorSocketBridge";
+import { executeMCPTool } from "../engine/tools/mcpTools.registry";
 import { io } from "../index";
 
 const router = express.Router();
@@ -8,7 +9,9 @@ const router = express.Router();
 // Active monitors storage (in-memory for now)
 const activeMonitors = new Map<string, ContinuousMonitor>();
 
-// Start monitoring endpoint
+// ====================================
+// START MONITORING
+// ====================================
 router.post("/start", async (req, res) => {
   try {
     const { sessionId, config } = req.body;
@@ -38,7 +41,7 @@ router.post("/start", async (req, res) => {
     activeMonitors.set(sessionId, monitor);
     console.log("✅ [Monitor API] Monitor created");
 
-    // ✅ Setup socket bridge BEFORE starting
+    // Setup socket bridge BEFORE starting
     setupMonitorSocketBridge(monitor, sessionId, io);
     console.log("✅ [Monitor API] Socket bridge setup complete");
 
@@ -60,7 +63,9 @@ router.post("/start", async (req, res) => {
   }
 });
 
-// Stop monitoring endpoint
+// ====================================
+// STOP MONITORING
+// ====================================
 router.post("/stop", async (req, res) => {
   try {
     const { sessionId } = req.body;
@@ -93,7 +98,9 @@ router.post("/stop", async (req, res) => {
   }
 });
 
-// Get monitor status
+// ====================================
+// GET MONITOR STATUS
+// ====================================
 router.get("/status/:sessionId", (req, res) => {
   try {
     const { sessionId } = req.params;
@@ -121,7 +128,60 @@ router.get("/status/:sessionId", (req, res) => {
   }
 });
 
-// Pause monitoring
+// ====================================
+// SLACK NOTIFICATION ENDPOINT
+// ====================================
+router.post("/slack-notify", async (req, res) => {
+  try {
+    const {
+      webhookUrl,
+      message,
+      severity,
+      metadata,
+      includeLogSnippet,
+      logSnippet,
+    } = req.body;
+
+    console.log("📢 [Monitor API] Slack notify request");
+
+    if (!webhookUrl) {
+      return res.status(400).json({
+        success: false,
+        error: "Webhook URL is required",
+      });
+    }
+
+    // Use MCP tool to send Slack notification
+    const result = await executeMCPTool("tool.slackNotify", {
+      webhookUrl,
+      message,
+      severity: severity || "info",
+      metadata: metadata || {},
+      includeLogSnippet: includeLogSnippet || false,
+      logSnippet: logSnippet || "",
+    });
+
+    console.log("✅ [Monitor API] Slack notification result:", result);
+
+    res.json({
+      success: result.success,
+      message: result.success
+        ? "Notification sent successfully"
+        : "Failed to send notification",
+      details: result,
+    });
+  } catch (error: any) {
+    console.error("❌ [Monitor API] Slack notify error:", error);
+    res.status(500).json({
+      success: false,
+      error: error.message,
+    });
+  }
+});
+
+// ====================================
+// PAUSE MONITORING
+// ====================================
 router.post("/pause", (req, res) => {
   try {
     const { sessionId } = req.body;
@@ -134,7 +194,6 @@ router.post("/pause", (req, res) => {
       });
     }
 
-    // Pause monitoring (stop checks but keep state)
     monitor.stop();
 
     res.json({
@@ -149,7 +208,9 @@ router.post("/pause", (req, res) => {
   }
 });
 
-// Resume monitoring
+// ====================================
+// RESUME MONITORING
+// ====================================
 router.post("/resume", async (req, res) => {
   try {
     const { sessionId } = req.body;
@@ -162,7 +223,6 @@ router.post("/resume", async (req, res) => {
       });
     }
 
-    // Resume monitoring
     await monitor.start();
 
     res.json({
