@@ -2,14 +2,13 @@
 /* eslint-disable react-hooks/exhaustive-deps */
 "use client";
 
-import { useEffect, useState, useRef } from "react";
+import { useEffect, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   Activity,
   AlertTriangle,
   CheckCircle2,
   XCircle,
-  ChevronLeft,
   Eye,
   EyeOff,
   Bell,
@@ -29,6 +28,14 @@ import {
   WifiOff,
   Globe,
   Settings,
+  Send,
+  RotateCcw,
+  GitBranch,
+  Zap,
+  ThumbsUp,
+  ThumbsDown,
+  X,
+  MessageSquare,
 } from "lucide-react";
 import { io, Socket } from "socket.io-client";
 
@@ -68,15 +75,28 @@ type MonitorStats = {
   uptime: number;
 };
 
-type AIFixProgress = {
-  stage: "analyzing" | "analysis_complete" | "applying_fix";
-  analysis?: {
-    summary: string;
-    rootCause: string;
-    confidence: string;
-    suggestedFixes: string[];
-  };
-  message?: string;
+type AIAnalysis = {
+  summary: string;
+  rootCause: string;
+  confidence: string;
+  errorCategory: string;
+  keyLogLines: string[];
+};
+
+type AISuggestion = {
+  id: string;
+  action: "restart" | "send_to_slack" | "rollback" | "scale" | "check_config";
+  title: string;
+  description: string;
+  severity: "low" | "medium" | "high" | "critical";
+  requiresApproval: boolean;
+};
+
+type ApprovalRequest = {
+  containerName: string;
+  action: string;
+  reason: string;
+  timestamp: string;
 };
 
 export default function MonitorPage() {
@@ -93,7 +113,6 @@ export default function MonitorPage() {
     uptime: 0,
   });
   const [isMonitoring, setIsMonitoring] = useState(false);
-  const [isPaused, setIsPaused] = useState(false);
   const [showAlerts, setShowAlerts] = useState(true);
   const [soundEnabled, setSoundEnabled] = useState(true);
   const [startTime, setStartTime] = useState<number>(Date.now());
@@ -101,9 +120,12 @@ export default function MonitorPage() {
     null,
   );
   const [fixingContainer, setFixingContainer] = useState<string | null>(null);
-  const [aiFixProgress, setAiFixProgress] = useState<AIFixProgress | null>(
-    null,
-  );
+  const [aiAnalysis, setAiAnalysis] = useState<Record<string, AIAnalysis>>({});
+  const [aiSuggestions, setAiSuggestions] = useState<
+    Record<string, AISuggestion[]>
+  >({});
+  const [approvalRequest, setApprovalRequest] =
+    useState<ApprovalRequest | null>(null);
   const [sessionId] = useState(
     () => `monitor-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
   );
@@ -184,21 +206,52 @@ export default function MonitorPage() {
 
     newSocket.on("ai-fix-progress", (data) => {
       console.log("🤖 AI Fix Progress:", data);
-      setAiFixProgress(data);
+      // You can add a loading state here if needed
     });
 
-    newSocket.on("ai-fix-result", (data) => {
-      console.log("✅ AI Fix Result:", data);
+    newSocket.on("ai-analysis-complete", (data) => {
+      console.log("✅ AI Analysis Complete:", data);
+      setAiAnalysis((prev) => ({
+        ...prev,
+        [data.containerName]: data.analysis,
+      }));
+      setAiSuggestions((prev) => ({
+        ...prev,
+        [data.containerName]: data.suggestions,
+      }));
       setFixingContainer(null);
-      setAiFixProgress(null);
+    });
+
+    newSocket.on("approval-required", (data: ApprovalRequest) => {
+      console.log("🔐 Approval Required:", data);
+      setApprovalRequest(data);
+    });
+
+    newSocket.on("ai-action-result", (data) => {
+      console.log("✅ AI Action Result:", data);
+      setApprovalRequest(null);
 
       // Add result as alert
       setAlerts((prev) => [
         ...prev,
         {
           timestamp: new Date().toISOString(),
-          message: data.message || "AI fix completed",
+          message: data.message || "Action completed",
           severity: data.success ? "info" : "critical",
+          details: data,
+        },
+      ]);
+    });
+
+    newSocket.on("ai-fix-error", (data) => {
+      console.log("❌ AI Fix Error:", data);
+      setFixingContainer(null);
+      setAlerts((prev) => [
+        ...prev,
+        {
+          timestamp: new Date().toISOString(),
+          message: data.message || "Action failed",
+          severity: "critical",
           details: data,
         },
       ]);
@@ -241,7 +294,6 @@ export default function MonitorPage() {
   };
 
   const playAlertSound = () => {
-    // Play browser notification sound
     if (typeof Audio !== "undefined") {
       const audio = new Audio("/alert.mp3");
       audio.play().catch((e) => console.log("Audio play failed:", e));
@@ -302,9 +354,46 @@ export default function MonitorPage() {
     if (!containerName || !socket) return;
 
     setFixingContainer(containerName);
-    setAiFixProgress(null);
+    setAiAnalysis((prev) => {
+      const newAnalysis = { ...prev };
+      delete newAnalysis[containerName];
+      return newAnalysis;
+    });
+    setAiSuggestions((prev) => {
+      const newSuggestions = { ...prev };
+      delete newSuggestions[containerName];
+      return newSuggestions;
+    });
 
     socket.emit("ai-fix-container", { sessionId, containerName });
+  };
+
+  const handleActionSelected = (
+    containerName: string,
+    action: string,
+    analysis: AIAnalysis,
+  ) => {
+    if (!socket) return;
+
+    socket.emit("ai-action-selected", {
+      sessionId,
+      containerName,
+      action,
+      analysis,
+    });
+  };
+
+  const handleApprovalResponse = (approved: boolean) => {
+    if (!socket || !approvalRequest) return;
+
+    socket.emit("approval-response", {
+      sessionId,
+      containerName: approvalRequest.containerName,
+      action: approvalRequest.action,
+      approved,
+    });
+
+    setApprovalRequest(null);
   };
 
   const formatUptime = (seconds: number): string => {
@@ -320,6 +409,95 @@ export default function MonitorPage() {
 
   return (
     <div className="h-screen w-screen flex flex-col bg-[rgb(var(--background))] overflow-hidden">
+      {/* Approval Modal */}
+      <AnimatePresence>
+        {approvalRequest && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4"
+            onClick={() => setApprovalRequest(null)}
+          >
+            <motion.div
+              initial={{ scale: 0.9, y: 20 }}
+              animate={{ scale: 1, y: 0 }}
+              exit={{ scale: 0.9, y: 20 }}
+              onClick={(e) => e.stopPropagation()}
+              className="bg-[rgb(var(--surface-elevated))] rounded-xl border border-[rgb(var(--border))] p-6 max-w-lg w-full shadow-2xl"
+            >
+              <div className="flex items-start gap-4 mb-4">
+                <div className="p-3 rounded-lg bg-[rgb(var(--warning))]/10 border border-[rgb(var(--warning))]/20">
+                  <AlertTriangle className="h-6 w-6 text-[rgb(var(--warning))]" />
+                </div>
+                <div className="flex-1">
+                  <h3 className="text-lg font-bold text-[rgb(var(--foreground))] mb-1">
+                    Approval Required
+                  </h3>
+                  <p className="text-sm text-[rgb(var(--foreground-muted))]">
+                    The following action requires your confirmation
+                  </p>
+                </div>
+                <button
+                  onClick={() => setApprovalRequest(null)}
+                  className="p-1 hover:surface rounded-lg transition-colors"
+                >
+                  <X className="h-5 w-5 text-[rgb(var(--foreground-muted))]" />
+                </button>
+              </div>
+
+              <div className="space-y-3 mb-6">
+                <div className="p-4 rounded-lg surface border border-[rgb(var(--border))]">
+                  <div className="grid grid-cols-2 gap-3 text-sm">
+                    <div>
+                      <div className="text-[rgb(var(--foreground-muted))] text-xs mb-1">
+                        Container
+                      </div>
+                      <div className="font-mono text-[rgb(var(--foreground))]">
+                        {approvalRequest.containerName}
+                      </div>
+                    </div>
+                    <div>
+                      <div className="text-[rgb(var(--foreground-muted))] text-xs mb-1">
+                        Action
+                      </div>
+                      <div className="font-semibold text-[rgb(var(--primary))]">
+                        {approvalRequest.action.toUpperCase()}
+                      </div>
+                    </div>
+                  </div>
+                  <div className="mt-3 pt-3 border-t border-[rgb(var(--border))]">
+                    <div className="text-[rgb(var(--foreground-muted))] text-xs mb-1">
+                      Reason
+                    </div>
+                    <div className="text-sm text-[rgb(var(--foreground))]">
+                      {approvalRequest.reason}
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <div className="flex gap-3">
+                <button
+                  onClick={() => handleApprovalResponse(false)}
+                  className="flex-1 px-4 py-3 rounded-lg surface hover:bg-[rgb(var(--border))] text-[rgb(var(--foreground))] font-medium transition-colors flex items-center justify-center gap-2"
+                >
+                  <ThumbsDown className="h-4 w-4" />
+                  Reject
+                </button>
+                <button
+                  onClick={() => handleApprovalResponse(true)}
+                  className="flex-1 px-4 py-3 rounded-lg bg-[rgb(var(--primary))] hover:bg-[rgb(var(--primary-hover))] text-[rgb(var(--primary-foreground))] font-medium transition-colors flex items-center justify-center gap-2"
+                >
+                  <ThumbsUp className="h-4 w-4" />
+                  Approve
+                </button>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
       {/* Header */}
       <motion.div
         initial={{ y: -20, opacity: 0 }}
@@ -487,31 +665,25 @@ export default function MonitorPage() {
                   <div className="flex items-center gap-3">
                     <div className="relative">
                       <div className="w-10 h-10 rounded-lg bg-[rgb(var(--primary))]/10 border border-[rgb(var(--primary))]/20 flex items-center justify-center">
-                        {!isPaused ? (
-                          <motion.div
-                            animate={{ scale: [1, 1.1, 1] }}
-                            transition={{ duration: 2, repeat: Infinity }}
-                          >
-                            <Activity className="h-5 w-5 text-[rgb(var(--primary))]" />
-                          </motion.div>
-                        ) : (
-                          <Pause className="h-5 w-5 text-[rgb(var(--warning))]" />
-                        )}
-                      </div>
-                      {!isPaused && (
                         <motion.div
-                          className="absolute -top-1 -right-1 w-3 h-3 bg-[rgb(var(--success))] rounded-full border-2 border-[rgb(var(--surface-elevated))]"
-                          animate={{ opacity: [1, 0.3, 1] }}
-                          transition={{ duration: 1.5, repeat: Infinity }}
-                        />
-                      )}
+                          animate={{ scale: [1, 1.1, 1] }}
+                          transition={{ duration: 2, repeat: Infinity }}
+                        >
+                          <Activity className="h-5 w-5 text-[rgb(var(--primary))]" />
+                        </motion.div>
+                      </div>
+                      <motion.div
+                        className="absolute -top-1 -right-1 w-3 h-3 bg-[rgb(var(--success))] rounded-full border-2 border-[rgb(var(--surface-elevated))]"
+                        animate={{ opacity: [1, 0.3, 1] }}
+                        transition={{ duration: 1.5, repeat: Infinity }}
+                      />
                     </div>
 
                     <div>
                       <h3 className="text-base font-bold text-[rgb(var(--foreground))] flex items-center gap-2">
                         Monitoring Status
                         <span className="text-[10px] px-2 py-0.5 rounded-full bg-[rgb(var(--success))]/10 text-[rgb(var(--success))] font-medium border border-[rgb(var(--success))]/20">
-                          {isPaused ? "PAUSED" : "ACTIVE"}
+                          ACTIVE
                         </span>
                       </h3>
                       <div className="flex items-center gap-2 text-xs text-[rgb(var(--foreground-muted))] mt-1">
@@ -584,57 +756,6 @@ export default function MonitorPage() {
                 </div>
               </motion.div>
 
-              {/* AI Fix Progress */}
-              <AnimatePresence>
-                {aiFixProgress && (
-                  <motion.div
-                    initial={{ height: 0, opacity: 0 }}
-                    animate={{ height: "auto", opacity: 1 }}
-                    exit={{ height: 0, opacity: 0 }}
-                    className="rounded-xl border border-[rgb(var(--primary))]/20 bg-[rgb(var(--primary))]/5 overflow-hidden"
-                  >
-                    <div className="p-6">
-                      <div className="flex items-center gap-3 mb-4">
-                        <motion.div
-                          animate={{ rotate: 360 }}
-                          transition={{
-                            duration: 2,
-                            repeat: Infinity,
-                            ease: "linear",
-                          }}
-                        >
-                          <Brain className="h-5 w-5 text-[rgb(var(--primary))]" />
-                        </motion.div>
-                        <div>
-                          <div className="font-semibold text-[rgb(var(--foreground))]">
-                            AI Auto-Recovery in Progress
-                          </div>
-                          <div className="text-xs text-[rgb(var(--foreground-muted))] mt-0.5">
-                            {aiFixProgress.message || "Analyzing logs..."}
-                          </div>
-                        </div>
-                      </div>
-
-                      {aiFixProgress.analysis && (
-                        <div className="space-y-3 rounded-lg surface-elevated p-4 border border-[rgb(var(--border))]">
-                          <div className="text-xs font-semibold text-[rgb(var(--foreground))]">
-                            AI Analysis Complete
-                          </div>
-                          <div className="text-xs text-[rgb(var(--foreground-muted))]">
-                            <span className="font-medium">Summary:</span>{" "}
-                            {aiFixProgress.analysis.summary}
-                          </div>
-                          <div className="text-xs text-[rgb(var(--foreground-muted))]">
-                            <span className="font-medium">Root Cause:</span>{" "}
-                            {aiFixProgress.analysis.rootCause}
-                          </div>
-                        </div>
-                      )}
-                    </div>
-                  </motion.div>
-                )}
-              </AnimatePresence>
-
               {/* Container Issues */}
               {(criticalContainers.length > 0 ||
                 warningContainers.length > 0) && (
@@ -661,6 +782,9 @@ export default function MonitorPage() {
                         }
                         onAIFix={handleAIFix}
                         isFixing={fixingContainer === metric.containerName}
+                        aiAnalysis={aiAnalysis[metric.containerName]}
+                        aiSuggestions={aiSuggestions[metric.containerName]}
+                        onActionSelected={handleActionSelected}
                       />
                     ))}
 
@@ -679,6 +803,9 @@ export default function MonitorPage() {
                         }
                         onAIFix={handleAIFix}
                         isFixing={fixingContainer === metric.containerName}
+                        aiAnalysis={aiAnalysis[metric.containerName]}
+                        aiSuggestions={aiSuggestions[metric.containerName]}
+                        onActionSelected={handleActionSelected}
                       />
                     ))}
                   </div>
@@ -777,6 +904,9 @@ function ContainerCard({
   onToggle,
   onAIFix,
   isFixing,
+  aiAnalysis,
+  aiSuggestions,
+  onActionSelected,
 }: {
   metric: ContainerMetric;
   index: number;
@@ -784,6 +914,13 @@ function ContainerCard({
   onToggle: () => void;
   onAIFix: (containerName: string) => void;
   isFixing: boolean;
+  aiAnalysis?: AIAnalysis;
+  aiSuggestions?: AISuggestion[];
+  onActionSelected: (
+    containerName: string,
+    action: string,
+    analysis: AIAnalysis,
+  ) => void;
 }) {
   const [copiedLogs, setCopiedLogs] = useState(false);
 
@@ -821,6 +958,36 @@ function ContainerCard({
       navigator.clipboard.writeText(metric.logs);
       setCopiedLogs(true);
       setTimeout(() => setCopiedLogs(false), 2000);
+    }
+  };
+
+  const getSuggestionIcon = (action: string) => {
+    switch (action) {
+      case "restart":
+        return RotateCcw;
+      case "send_to_slack":
+        return Send;
+      case "rollback":
+        return GitBranch;
+      case "scale":
+        return Zap;
+      case "check_config":
+        return Settings;
+      default:
+        return AlertCircle;
+    }
+  };
+
+  const getSuggestionColor = (severity: string) => {
+    switch (severity) {
+      case "critical":
+        return "border-[rgb(var(--error))]/30 bg-[rgb(var(--error))]/5 hover:bg-[rgb(var(--error))]/10";
+      case "high":
+        return "border-[rgb(var(--warning))]/30 bg-[rgb(var(--warning))]/5 hover:bg-[rgb(var(--warning))]/10";
+      case "medium":
+        return "border-[rgb(var(--primary))]/30 bg-[rgb(var(--primary))]/5 hover:bg-[rgb(var(--primary))]/10";
+      default:
+        return "border-[rgb(var(--border))] surface hover:bg-[rgb(var(--border))]";
     }
   };
 
@@ -998,6 +1165,116 @@ function ContainerCard({
                 </div>
               )}
 
+              {/* AI Analysis Results */}
+              {aiAnalysis && (
+                <div className="rounded-lg border border-[rgb(var(--primary))]/20 bg-[rgb(var(--primary))]/5 p-4 space-y-3">
+                  <div className="flex items-center gap-2 text-sm font-semibold text-[rgb(var(--foreground))]">
+                    <Brain className="h-4 w-4 text-[rgb(var(--primary))]" />
+                    AI Analysis Results
+                  </div>
+
+                  <div className="space-y-2 text-xs">
+                    <div>
+                      <span className="text-[rgb(var(--foreground-muted))]">
+                        Summary:
+                      </span>
+                      <p className="text-[rgb(var(--foreground))] mt-1">
+                        {aiAnalysis.summary}
+                      </p>
+                    </div>
+
+                    <div>
+                      <span className="text-[rgb(var(--foreground-muted))]">
+                        Root Cause:
+                      </span>
+                      <p className="text-[rgb(var(--foreground))] mt-1">
+                        {aiAnalysis.rootCause}
+                      </p>
+                    </div>
+
+                    <div className="flex items-center gap-4 pt-2 border-t border-[rgb(var(--border))]">
+                      <div>
+                        <span className="text-[rgb(var(--foreground-muted))]">
+                          Confidence:
+                        </span>
+                        <span
+                          className={`ml-2 font-medium ${
+                            aiAnalysis.confidence === "high"
+                              ? "text-[rgb(var(--success))]"
+                              : aiAnalysis.confidence === "medium"
+                                ? "text-[rgb(var(--warning))]"
+                                : "text-[rgb(var(--error))]"
+                          }`}
+                        >
+                          {aiAnalysis.confidence.toUpperCase()}
+                        </span>
+                      </div>
+                      <div>
+                        <span className="text-[rgb(var(--foreground-muted))]">
+                          Category:
+                        </span>
+                        <span className="ml-2 font-medium text-[rgb(var(--foreground))]">
+                          {aiAnalysis.errorCategory}
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* AI Suggestions */}
+              {aiSuggestions && aiSuggestions.length > 0 && (
+                <div className="space-y-2">
+                  <div className="text-xs font-semibold text-[rgb(var(--foreground))] flex items-center gap-1">
+                    <Sparkles className="h-3 w-3 text-[rgb(var(--primary))]" />
+                    AI Suggested Actions
+                  </div>
+
+                  <div className="grid gap-2">
+                    {aiSuggestions.map((suggestion) => {
+                      const SuggestionIcon = getSuggestionIcon(
+                        suggestion.action,
+                      );
+
+                      return (
+                        <button
+                          key={suggestion.id}
+                          onClick={() =>
+                            onActionSelected(
+                              metric.containerName,
+                              suggestion.action,
+                              aiAnalysis!,
+                            )
+                          }
+                          className={`p-3 rounded-lg border text-left transition-all ${getSuggestionColor(suggestion.severity)}`}
+                        >
+                          <div className="flex items-start gap-3">
+                            <div className="p-2 rounded-lg surface-elevated border border-[rgb(var(--border))]">
+                              <SuggestionIcon className="h-4 w-4 text-[rgb(var(--foreground))]" />
+                            </div>
+                            <div className="flex-1 min-w-0">
+                              <div className="flex items-center gap-2 mb-1">
+                                <span className="text-sm font-semibold text-[rgb(var(--foreground))]">
+                                  {suggestion.title}
+                                </span>
+                                {suggestion.requiresApproval && (
+                                  <span className="text-[9px] px-1.5 py-0.5 rounded-full bg-[rgb(var(--warning))]/10 text-[rgb(var(--warning))] border border-[rgb(var(--warning))]/20 font-medium">
+                                    REQUIRES APPROVAL
+                                  </span>
+                                )}
+                              </div>
+                              <p className="text-xs text-[rgb(var(--foreground-muted))] leading-relaxed">
+                                {suggestion.description}
+                              </p>
+                            </div>
+                          </div>
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+
               {hasLogs && (
                 <div>
                   <div className="flex items-center justify-between mb-2">
@@ -1030,27 +1307,24 @@ function ContainerCard({
                 </div>
               )}
 
-              <button
-                onClick={() => onAIFix(metric.containerName)}
-                disabled={isFixing}
-                className={`w-full rounded-lg px-4 py-3 font-medium text-sm transition-all flex items-center justify-center gap-2 ${
-                  isFixing
-                    ? "bg-[rgb(var(--primary))]/10 text-[rgb(var(--primary))] cursor-wait"
-                    : "bg-[rgb(var(--primary))] hover:bg-[rgb(var(--primary-hover))] text-[rgb(var(--primary-foreground))] shadow-sm hover:shadow-md"
-                }`}
-              >
-                {isFixing ? (
-                  <>
-                    <Loader2 className="h-4 w-4 animate-spin" />
-                    AI is analyzing and fixing...
-                  </>
-                ) : (
-                  <>
-                    <Sparkles className="h-4 w-4" />
-                    Fix with AI Auto-Recovery
-                  </>
-                )}
-              </button>
+              {/* Initial Fix Button */}
+              {!aiAnalysis && !isFixing && (
+                <button
+                  onClick={() => onAIFix(metric.containerName)}
+                  className="w-full rounded-lg px-4 py-3 bg-[rgb(var(--primary))] hover:bg-[rgb(var(--primary-hover))] text-[rgb(var(--primary-foreground))] font-medium text-sm transition-all flex items-center justify-center gap-2 shadow-sm hover:shadow-md"
+                >
+                  <Sparkles className="h-4 w-4" />
+                  Analyze with AI
+                </button>
+              )}
+
+              {/* Loading State */}
+              {isFixing && (
+                <div className="flex items-center justify-center gap-2 py-3 text-[rgb(var(--primary))]">
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                  <span className="text-sm">AI is analyzing...</span>
+                </div>
+              )}
             </div>
           </motion.div>
         )}

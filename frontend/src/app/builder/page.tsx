@@ -1,36 +1,61 @@
 "use client";
 
 import { useState } from "react";
-import { motion } from "framer-motion";
+import { motion, AnimatePresence } from "framer-motion";
 import BuilderPage from "../../components/BuilderPage";
 import AgentSwarmPage from "@/components/AgentSwarmPage";
+import MonitorDashboard from "@/components/MonitorDashboard";
 import ModeSelector, { WorkflowMode } from "@/components/ModeSelector";
 
 export default function Home() {
   const [mode, setMode] = useState<WorkflowMode>("runbook");
 
   return (
-    <div className="h-screen w-screen overflow-hidden bg-[rgb(var(--background))]">
-      {/* Mode Selector Overlay */}
-      <div className="absolute top-4 left-1/2 -translate-x-1/2 z-50">
-        <ModeSelector mode={mode} onChange={setMode} />
-      </div>
+    <div className="h-screen w-screen overflow-hidden bg-[rgb(var(--background))] relative">
+      {/* Draggable Mode Selector - Manages its own position */}
+      <ModeSelector mode={mode} onChange={setMode} />
 
-      {/* Content */}
-      <motion.div
-        className="h-full w-full"
-        animate={{ x: mode === "runbook" ? "0%" : "-100%" }}
-        transition={{ type: "spring", stiffness: 300, damping: 30 }}
-      >
-        <div className="flex h-full w-[200%]">
-          <div className="w-1/2 h-full">
+      {/* Content - Only render the active mode */}
+      <AnimatePresence mode="wait">
+        {mode === "runbook" && (
+          <motion.div
+            key="runbook"
+            initial={{ opacity: 0, x: -20 }}
+            animate={{ opacity: 1, x: 0 }}
+            exit={{ opacity: 0, x: -20 }}
+            transition={{ duration: 0.3 }}
+            className="h-full w-full"
+          >
             <BuilderPage />
-          </div>
-          <div className="w-1/2 h-full">
+          </motion.div>
+        )}
+
+        {mode === "monitor" && (
+          <motion.div
+            key="monitor"
+            initial={{ opacity: 0, x: 20 }}
+            animate={{ opacity: 1, x: 0 }}
+            exit={{ opacity: 0, x: 20 }}
+            transition={{ duration: 0.3 }}
+            className="h-full w-full"
+          >
+            <MonitorDashboard onClose={() => setMode("runbook")} />
+          </motion.div>
+        )}
+
+        {mode === "swarm" && (
+          <motion.div
+            key="swarm"
+            initial={{ opacity: 0, x: 20 }}
+            animate={{ opacity: 1, x: 0 }}
+            exit={{ opacity: 0, x: 20 }}
+            transition={{ duration: 0.3 }}
+            className="h-full w-full"
+          >
             <AgentSwarmPage />
-          </div>
-        </div>
-      </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   );
 }

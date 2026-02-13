@@ -53,7 +53,6 @@ import AIWorkflowGenerator from "@/components/Aiworkflowgenerator";
 import React from "react";
 import StepConfigPanel from "@/components/StepConfigPanel";
 import { useTheme } from "@/components/ThemeProvider";
-import MonitorDashboard from "@/components/MonitorDashboard";
 import { DockerConnectionDialog } from "@/components/DockerConnectionDialog";
 
 const getWorkspaceId = () => {
@@ -98,13 +97,6 @@ const categoryMeta: Record<string, { color: string; bg: string }> = {
     bg: "bg-blue-50 dark:bg-blue-500/10",
   },
 };
-
-const QUICK_ADD_TYPES = [
-  "tool.httpHealth",
-  "tool.dockerStatus",
-  "logic.approval",
-  "agent.aiAnalyzer",
-];
 
 function TimelineStep({ step, index, onClick, selected }: any) {
   const {
@@ -208,7 +200,6 @@ export default function BuilderPage() {
   const [showDockerDialog, setShowDockerDialog] = useState(false);
   const [activeRunId, setActiveRunId] = useState<string | null>(null);
   const [showDashboard, setShowDashboard] = useState(false);
-  const [showMonitor, setShowMonitor] = useState(false);
   const [showAIGenerator, setShowAIGenerator] = useState(false);
   const [workflowName, setWorkflowName] = useState(
     "Incident Response Workflow",
@@ -363,7 +354,7 @@ export default function BuilderPage() {
 
       <motion.div
         className="absolute inset-0 flex"
-        animate={{ x: showDashboard ? "-100%" : showMonitor ? "-100%" : "0%" }}
+        animate={{ x: showDashboard ? "-100%" : "0%" }}
         transition={{ type: "spring", stiffness: 300, damping: 30 }}
       >
         {/* Sidebar */}
@@ -589,16 +580,6 @@ export default function BuilderPage() {
                 size="sm"
                 variant="outline"
                 className="h-8 rounded-lg border-[rgb(var(--border))] bg-transparent hover:surface"
-                onClick={() => setShowMonitor(true)}
-              >
-                <Activity className="mr-1.5 h-3.5 w-3.5" />
-                Monitor
-              </Button>
-
-              <Button
-                size="sm"
-                variant="outline"
-                className="h-8 rounded-lg border-[rgb(var(--border))] bg-transparent hover:surface"
                 onClick={() => setShowAIGenerator(true)}
               >
                 <Wand2 className="mr-1.5 h-3.5 w-3.5" />
@@ -739,18 +720,6 @@ export default function BuilderPage() {
       >
         {activeRunId && showDashboard && (
           <RunDashboard runId={activeRunId} onClose={handleBackToBuilder} />
-        )}
-      </motion.div>
-
-      {/* Monitor Dashboard */}
-      <motion.div
-        className="absolute inset-0 bg-[rgb(var(--background))]"
-        initial={{ x: "100%" }}
-        animate={{ x: showMonitor ? "0%" : "100%" }}
-        transition={{ type: "spring", stiffness: 300, damping: 30 }}
-      >
-        {showMonitor && (
-          <MonitorDashboard onClose={() => setShowMonitor(false)} />
         )}
       </motion.div>
     </div>
