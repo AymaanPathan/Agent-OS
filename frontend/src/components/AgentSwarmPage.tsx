@@ -10,7 +10,6 @@ import {
   Shield,
   AlertTriangle,
   CheckCircle2,
-  Loader2,
   X,
   ChevronRight,
   Sparkles,
@@ -18,6 +17,7 @@ import {
   Activity,
   FileText,
   Settings,
+  Info,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import SwarmExecutionPanel from "./SwarmExecutionPanel";
@@ -148,42 +148,42 @@ export default function AgentSwarmPage() {
                 Agent Swarm
               </div>
               <div className="text-xs text-[rgb(var(--foreground-muted))]">
-                {enabledAgents.length} agents enabled
+                {enabledAgents.length} of {agents.length} agents enabled
               </div>
             </div>
           </div>
         </div>
 
         <div className="flex items-center gap-2">
-          <Button
-            size="sm"
-            variant="outline"
+          <button
             onClick={() => setShowSettings(!showSettings)}
+            className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors flex items-center gap-1.5 ${
+              showSettings
+                ? "bg-[rgb(var(--primary))]/10 text-[rgb(var(--primary))] border border-[rgb(var(--primary))]/20"
+                : "hover:surface text-[rgb(var(--foreground-muted))] border border-transparent"
+            }`}
           >
-            <Settings className="mr-1.5 h-3.5 w-3.5" />
+            <Settings className="h-3.5 w-3.5" />
             Settings
-          </Button>
+          </button>
 
           {!isExecuting ? (
-            <Button
-              size="sm"
-              className="h-8 bg-[rgb(var(--primary))] hover:bg-[rgb(var(--primary-hover))]"
+            <button
               onClick={handleRunSwarm}
               disabled={!canRun}
+              className="px-4 py-1.5 rounded-lg bg-[rgb(var(--primary))] hover:bg-[rgb(var(--primary-hover))] text-[rgb(var(--primary-foreground))] text-sm font-medium transition-colors flex items-center gap-1.5 disabled:opacity-50 disabled:cursor-not-allowed"
             >
-              <Play className="mr-1.5 h-3.5 w-3.5 fill-current" />
+              <Play className="h-3.5 w-3.5 fill-current" />
               Run Swarm
-            </Button>
+            </button>
           ) : (
-            <Button
-              size="sm"
-              variant="outline"
-              className="h-8 border-[rgb(var(--error))] text-[rgb(var(--error))]"
+            <button
               onClick={handleStopSwarm}
+              className="px-4 py-1.5 rounded-lg border border-[rgb(var(--error))] text-[rgb(var(--error))] hover:bg-[rgb(var(--error))]/10 text-sm font-medium transition-colors flex items-center gap-1.5"
             >
-              <X className="mr-1.5 h-3.5 w-3.5" />
+              <X className="h-3.5 w-3.5" />
               Stop
-            </Button>
+            </button>
           )}
         </div>
       </motion.header>
@@ -192,7 +192,7 @@ export default function AgentSwarmPage() {
       <div className="flex-1 overflow-hidden flex">
         {/* Left Panel - Configuration */}
         <motion.div
-          className="w-[480px] border-r border-[rgb(var(--border))] surface flex flex-col overflow-hidden"
+          className="w-[420px] border-r border-[rgb(var(--border))] surface flex flex-col overflow-hidden"
           initial={{ x: -20, opacity: 0 }}
           animate={{ x: 0, opacity: 1 }}
         >
@@ -209,12 +209,14 @@ export default function AgentSwarmPage() {
                 value={goal}
                 onChange={(e) => setGoal(e.target.value)}
                 placeholder="Describe what you want the agent swarm to accomplish..."
-                className="w-full h-28 px-3 py-2 rounded-lg border border-[rgb(var(--border))] surface-elevated text-sm text-[rgb(var(--foreground))] placeholder:text-[rgb(var(--foreground-subtle))] focus:border-[rgb(var(--primary))] focus:outline-none focus:ring-2 focus:ring-[rgb(var(--primary))]/20 resize-none"
+                className="w-full h-32 px-3 py-2.5 rounded-lg border border-[rgb(var(--border))] surface-elevated text-sm text-[rgb(var(--foreground))] placeholder:text-[rgb(var(--foreground-subtle))] focus:border-[rgb(var(--primary))] focus:outline-none focus:ring-2 focus:ring-[rgb(var(--primary))]/20 resize-none leading-relaxed"
                 disabled={isExecuting}
               />
-              <div className="flex items-center gap-2 mt-2 text-xs text-[rgb(var(--foreground-muted))]">
-                <Sparkles className="h-3 w-3" />
-                <span>AI will parse your goal and coordinate agents</span>
+              <div className="flex items-center gap-2 mt-2 px-3 py-2 rounded-lg bg-[rgb(var(--primary))]/5 border border-[rgb(var(--primary))]/10">
+                <Sparkles className="h-3.5 w-3.5 text-[rgb(var(--primary))] flex-shrink-0" />
+                <span className="text-xs text-[rgb(var(--foreground-muted))]">
+                  AI will parse your goal and coordinate agents automatically
+                </span>
               </div>
             </div>
 
@@ -227,7 +229,7 @@ export default function AgentSwarmPage() {
                     Sub-Agents
                   </label>
                 </div>
-                <span className="text-xs text-[rgb(var(--foreground-muted))]">
+                <span className="text-xs font-medium text-[rgb(var(--foreground-muted))]">
                   {enabledAgents.length}/{agents.length} enabled
                 </span>
               </div>
@@ -240,19 +242,19 @@ export default function AgentSwarmPage() {
                     disabled={isExecuting}
                     className={`w-full text-left p-3 rounded-lg border transition-all ${
                       agent.enabled
-                        ? "border-[rgb(var(--primary))]/30 surface-elevated"
+                        ? "border-[rgb(var(--primary))]/30 surface-elevated shadow-sm"
                         : "border-[rgb(var(--border))] surface hover:surface-elevated"
-                    }`}
+                    } ${isExecuting ? "cursor-not-allowed opacity-60" : "cursor-pointer"}`}
                     whileHover={{ scale: isExecuting ? 1 : 1.01 }}
                     whileTap={{ scale: isExecuting ? 1 : 0.99 }}
                   >
                     <div className="flex items-start gap-3">
                       <div
-                        className={`flex-shrink-0 w-8 h-8 rounded-lg ${
+                        className={`flex-shrink-0 w-9 h-9 rounded-lg ${
                           agent.enabled
-                            ? "bg-[rgb(var(--primary))]/10"
-                            : "surface"
-                        } border border-[rgb(var(--border))] flex items-center justify-center`}
+                            ? "bg-[rgb(var(--primary))]/10 border-[rgb(var(--primary))]/20"
+                            : "surface border-[rgb(var(--border))]"
+                        } border flex items-center justify-center transition-colors`}
                       >
                         <agent.icon
                           className={`h-4 w-4 ${
@@ -264,7 +266,7 @@ export default function AgentSwarmPage() {
                       </div>
 
                       <div className="flex-1 min-w-0">
-                        <div className="flex items-center gap-2">
+                        <div className="flex items-center gap-2 mb-1">
                           <span
                             className={`text-sm font-medium ${
                               agent.enabled
@@ -275,10 +277,10 @@ export default function AgentSwarmPage() {
                             {agent.name}
                           </span>
                           {agent.enabled && (
-                            <CheckCircle2 className="h-3 w-3 text-[rgb(var(--primary))]" />
+                            <CheckCircle2 className="h-3.5 w-3.5 text-[rgb(var(--primary))]" />
                           )}
                         </div>
-                        <p className="text-xs text-[rgb(var(--foreground-muted))] mt-0.5">
+                        <p className="text-xs text-[rgb(var(--foreground-muted))] leading-relaxed">
                           {agent.description}
                         </p>
                       </div>
@@ -295,6 +297,7 @@ export default function AgentSwarmPage() {
                   initial={{ height: 0, opacity: 0 }}
                   animate={{ height: "auto", opacity: 1 }}
                   exit={{ height: 0, opacity: 0 }}
+                  className="overflow-hidden"
                 >
                   <div className="flex items-center gap-2 mb-3">
                     <Shield className="h-4 w-4 text-[rgb(var(--primary))]" />
@@ -311,15 +314,15 @@ export default function AgentSwarmPage() {
                         disabled={isExecuting}
                         className={`w-full text-left p-3 rounded-lg border transition-all ${
                           option.enabled
-                            ? "border-[rgb(var(--success))]/30 bg-[rgb(var(--success))]/5"
+                            ? "border-[rgb(var(--success))]/30 bg-[rgb(var(--success))]/5 shadow-sm"
                             : "border-[rgb(var(--border))] surface hover:surface-elevated"
-                        }`}
+                        } ${isExecuting ? "cursor-not-allowed opacity-60" : "cursor-pointer"}`}
                         whileHover={{ scale: isExecuting ? 1 : 1.01 }}
                         whileTap={{ scale: isExecuting ? 1 : 0.99 }}
                       >
                         <div className="flex items-start gap-3">
                           <div
-                            className={`flex-shrink-0 w-6 h-6 rounded border flex items-center justify-center ${
+                            className={`flex-shrink-0 w-5 h-5 rounded border flex items-center justify-center transition-colors ${
                               option.enabled
                                 ? "bg-[rgb(var(--success))] border-[rgb(var(--success))]"
                                 : "surface border-[rgb(var(--border))]"
@@ -332,7 +335,7 @@ export default function AgentSwarmPage() {
 
                           <div className="flex-1 min-w-0">
                             <div
-                              className={`text-sm font-medium ${
+                              className={`text-sm font-medium mb-0.5 ${
                                 option.enabled
                                   ? "text-[rgb(var(--foreground))]"
                                   : "text-[rgb(var(--foreground-muted))]"
@@ -340,7 +343,7 @@ export default function AgentSwarmPage() {
                             >
                               {option.label}
                             </div>
-                            <p className="text-xs text-[rgb(var(--foreground-muted))] mt-0.5">
+                            <p className="text-xs text-[rgb(var(--foreground-muted))] leading-relaxed">
                               {option.description}
                             </p>
                           </div>
@@ -366,30 +369,45 @@ export default function AgentSwarmPage() {
                   </span>
                 </div>
 
-                <div className="space-y-2">
-                  {enabledAgents.map((agent, index) => (
-                    <div
-                      key={agent.id}
-                      className="flex items-center gap-3 text-xs"
-                    >
-                      <div className="flex items-center justify-center w-5 h-5 rounded-full bg-[rgb(var(--primary))]/10 border border-[rgb(var(--primary))]/20 text-[rgb(var(--primary))] font-medium">
-                        {index + 1}
+                {enabledAgents.length > 0 ? (
+                  <div className="space-y-2">
+                    {enabledAgents.map((agent, index) => (
+                      <div key={agent.id} className="flex items-center gap-3">
+                        <div className="flex items-center justify-center w-6 h-6 rounded-full bg-[rgb(var(--primary))]/10 border border-[rgb(var(--primary))]/20 flex-shrink-0">
+                          <span className="text-xs font-semibold text-[rgb(var(--primary))]">
+                            {index + 1}
+                          </span>
+                        </div>
+                        <div className="flex-1 flex items-center gap-2">
+                          <span className="text-sm text-[rgb(var(--foreground-muted))]">
+                            {agent.name}
+                          </span>
+                          {index < enabledAgents.length - 1 && (
+                            <ChevronRight className="h-3.5 w-3.5 text-[rgb(var(--foreground-subtle))]" />
+                          )}
+                        </div>
                       </div>
-                      <span className="text-[rgb(var(--foreground-muted))]">
-                        {agent.name}
-                      </span>
-                      {index < enabledAgents.length - 1 && (
-                        <ChevronRight className="h-3 w-3 text-[rgb(var(--foreground-subtle))]" />
-                      )}
+                    ))}
+                    <div className="mt-3 pt-3 border-t border-[rgb(var(--border))]">
+                      <div className="flex items-start gap-2 text-xs text-[rgb(var(--foreground-muted))]">
+                        <Info className="h-3.5 w-3.5 text-[rgb(var(--primary))] flex-shrink-0 mt-0.5" />
+                        <span className="leading-relaxed">
+                          Agents will execute sequentially, coordinating to
+                          resolve the incident
+                        </span>
+                      </div>
                     </div>
-                  ))}
-                </div>
-
-                {enabledAgents.length === 0 && (
-                  <div className="text-center py-4">
-                    <AlertTriangle className="h-8 w-8 text-[rgb(var(--warning))] mx-auto mb-2" />
+                  </div>
+                ) : (
+                  <div className="text-center py-8">
+                    <div className="inline-flex items-center justify-center w-12 h-12 rounded-full bg-[rgb(var(--warning))]/10 border border-[rgb(var(--warning))]/20 mb-3">
+                      <AlertTriangle className="h-6 w-6 text-[rgb(var(--warning))]" />
+                    </div>
+                    <p className="text-sm font-medium text-[rgb(var(--foreground))] mb-1">
+                      No agents selected
+                    </p>
                     <p className="text-xs text-[rgb(var(--foreground-muted))]">
-                      No agents enabled. Select at least one agent to proceed.
+                      Enable at least one agent to begin
                     </p>
                   </div>
                 )}
@@ -413,20 +431,31 @@ export default function AgentSwarmPage() {
               animate={{ opacity: 1 }}
               className="h-full flex items-center justify-center p-12"
             >
-              <div className="text-center max-w-md">
-                <div className="inline-flex items-center justify-center w-20 h-20 rounded-2xl surface-elevated border border-[rgb(var(--border))] mb-6">
-                  <Users className="h-10 w-10 text-[rgb(var(--primary))]" />
+              <div className="text-center max-w-lg">
+                <div className="inline-flex items-center justify-center w-24 h-24 rounded-2xl surface-elevated border border-[rgb(var(--border))] shadow-sm mb-6">
+                  <Users className="h-12 w-12 text-[rgb(var(--primary))]" />
                 </div>
-                <h2 className="text-2xl font-bold text-[rgb(var(--foreground))] mb-2">
-                  Ready to Deploy Swarm
+                <h2 className="text-2xl font-bold text-[rgb(var(--foreground))] mb-3">
+                  Ready to Deploy Agent Swarm
                 </h2>
-                <p className="text-[rgb(var(--foreground-muted))] mb-6">
-                  Configure your goal and select agents, then click Run Swarm to
-                  begin AI-powered incident response
+                <p className="text-[rgb(var(--foreground-muted))] mb-8 leading-relaxed">
+                  Configure your incident goal and select agents. When ready,
+                  click <strong>Run Swarm</strong> to begin AI-powered incident
+                  response with coordinated multi-agent collaboration.
                 </p>
-                <div className="flex items-center justify-center gap-2 text-xs text-[rgb(var(--foreground-subtle))]">
-                  <Shield className="h-3 w-3" />
-                  <span>All actions are monitored and logged</span>
+                <div className="flex items-center justify-center gap-6 text-xs text-[rgb(var(--foreground-subtle))]">
+                  <div className="flex items-center gap-2">
+                    <Shield className="h-4 w-4 text-[rgb(var(--success))]" />
+                    <span>Safety verified</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <Activity className="h-4 w-4 text-[rgb(var(--primary))]" />
+                    <span>Real-time monitoring</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <FileText className="h-4 w-4 text-[rgb(var(--warning))]" />
+                    <span>Full audit trail</span>
+                  </div>
                 </div>
               </div>
             </motion.div>

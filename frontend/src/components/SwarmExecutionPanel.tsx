@@ -13,9 +13,10 @@ import {
   Terminal,
   Clock,
   Activity,
-  Brain,
+  FileText,
   Shield,
   Zap,
+  AlertCircle,
 } from "lucide-react";
 
 interface SwarmExecutionPanelProps {
@@ -159,16 +160,17 @@ export default function SwarmExecutionPanel({
         const responseText =
           data.result.parts?.[0]?.text || JSON.stringify(data.result);
 
-        // Try to extract structured data
+        // Parse the structured JSON from the response
         let parsedResponse: any = {};
         try {
-          // Look for JSON in the response
-          const jsonMatch = responseText.match(/\{[\s\S]*\}/);
-          if (jsonMatch) {
-            parsedResponse = JSON.parse(jsonMatch[0]);
+          // The response contains multiple JSON objects, extract the final comprehensive one
+          const jsonMatches = responseText.match(/\{[\s\S]*?\}(?=\n|$)/g);
+          if (jsonMatches && jsonMatches.length > 0) {
+            // Take the last (most comprehensive) JSON object
+            parsedResponse = JSON.parse(jsonMatches[jsonMatches.length - 1]);
           }
         } catch (e) {
-          // If parsing fails, use the raw text
+          console.error("Failed to parse response:", e);
           parsedResponse = { rawResponse: responseText };
         }
 
@@ -213,13 +215,29 @@ export default function SwarmExecutionPanel({
     // Incident Commander (already running)
     await delay(1000);
     updateAgentStatus("incident-commander", "success");
+
+    const initialAssessment = parsedData.initialAssessment || {};
+    const incidentReport = parsedData.incidentReport || {};
+
+    let commanderMsg = "Initial assessment complete.";
+    if (incidentReport.containerName) {
+      const symptoms =
+        incidentReport.symptoms?.join(", ") || "Unknown symptoms";
+      commanderMsg = `Incident detected in container '${incidentReport.containerName}': ${symptoms}`;
+    } else if (initialAssessment.dockerList) {
+      commanderMsg = `Found ${initialAssessment.dockerList.totalCount} containers: ${initialAssessment.dockerList.healthyCount} healthy, ${initialAssessment.dockerList.unhealthyCount || 0} unhealthy`;
+    }
+
     addMessage({
       agentId: "incident-commander",
       agentName: "Incident Commander",
       type: "success",
-      message:
-        "Initial assessment complete. Delegating to specialized agents...",
-      data: parsedData.incident_assessment || parsedData,
+      message: commanderMsg,
+      data: {
+        incidentReport: parsedData.incidentReport,
+        dockerList: initialAssessment.dockerList,
+        healthCheckScan: initialAssessment.healthCheckScan,
+      },
     });
 
     // Log Detective
@@ -230,17 +248,28 @@ export default function SwarmExecutionPanel({
         agentId: "log-detective",
         agentName: "Log Detective",
         type: "info",
-        message: "Analyzing container logs...",
+        message: "Analyzing container logs and diagnostics...",
       });
 
       await delay(2000);
       updateAgentStatus("log-detective", "success");
+
+      const diagnostic = parsedData.diagnosticResult || {};
+      const rootCauseMsg =
+        diagnostic.rootCause || "Root cause analysis complete";
+      const severity = diagnostic.severity
+        ? ` (Severity: ${diagnostic.severity.toUpperCase()})`
+        : "";
+
       addMessage({
         agentId: "log-detective",
         agentName: "Log Detective",
-        type: "success",
-        message: parsedData.root_cause || "Root cause analysis complete",
-        data: parsedData.diagnosis || { confidence: parsedData.confidence },
+        type:
+          diagnostic.severity === "high" || diagnostic.severity === "critical"
+            ? "warning"
+            : "success",
+        message: `${rootCauseMsg}${severity}`,
+        data: parsedData.diagnosticResult,
       });
     }
 
@@ -252,18 +281,28 @@ export default function SwarmExecutionPanel({
         agentId: "recovery-strategist",
         agentName: "Recovery Strategist",
         type: "info",
-        message: "Generating recovery strategies...",
+        message: "Generating and evaluating recovery strategies...",
       });
 
       await delay(1500);
       updateAgentStatus("recovery-strategist", "success");
+
+      const strategy = parsedData.strategyResult?.selectedOption || {};
+      let strategyMsg = "Recovery strategy recommended";
+
+      if (strategy.description) {
+        strategyMsg = strategy.description;
+        if (strategy.estimatedDowntime) {
+          strategyMsg += ` (Downtime: ${strategy.estimatedDowntime})`;
+        }
+      }
+
       addMessage({
         agentId: "recovery-strategist",
         agentName: "Recovery Strategist",
         type: "success",
-        message:
-          parsedData.recommendedAction || "Recovery strategy recommended",
-        data: parsedData.strategies || { action: parsedData.finalAction },
+        message: strategyMsg,
+        data: parsedData.strategyResult,
       });
     }
 
@@ -279,31 +318,51 @@ export default function SwarmExecutionPanel({
       });
 
       await delay(1000);
-      const needsApproval = parsedData.needsApproval || false;
+      const riskCheck = parsedData.riskCheckResult || {};
+      const needsApproval = riskCheck.requiresHumanApproval || false;
+      const approved = riskCheck.approval === "approved";
+
+      let riskMsg = "Action evaluation complete";
+      if (needsApproval) {
+        riskMsg = "⚠️ Action requires human approval";
+      } else if (approved) {
+        riskMsg = "✅ Action approved - risk within acceptable thresholds";
+        if (riskCheck.riskNotes) {
+          riskMsg += `. ${riskCheck.riskNotes}`;
+        }
+      }
+
       updateAgentStatus("risk-checker", "success");
       addMessage({
         agentId: "risk-checker",
         agentName: "Risk Checker",
         type: needsApproval ? "warning" : "success",
-        message: needsApproval
-          ? "⚠️ Action requires human approval"
-          : "✅ Action approved - risk within acceptable thresholds",
-        data: {
-          approved: !needsApproval,
-          riskScore: parsedData.riskScore,
-          reason: parsedData.reason,
-        },
+        message: riskMsg,
+        data: parsedData.riskCheckResult,
       });
     }
 
-    // Final summary
+    // Final Decision
     await delay(500);
+    const finalDecision = parsedData.finalDecision || {};
+    let summaryMsg = "All agents have completed their tasks";
+
+    if (finalDecision.action === "execute") {
+      summaryMsg = `✅ Final Decision: ${finalDecision.action.toUpperCase()}`;
+      if (finalDecision.notes) {
+        summaryMsg += ` - ${finalDecision.notes}`;
+      }
+      if (finalDecision.confidenceScore) {
+        summaryMsg += ` (Confidence: ${Math.round(finalDecision.confidenceScore * 100)}%)`;
+      }
+    }
+
     addMessage({
       agentId: "system",
       agentName: "System",
       type: "success",
-      message: "All agents have completed their tasks",
-      data: { fullResponse: parsedData },
+      message: summaryMsg,
+      data: parsedData.finalDecision,
     });
   };
 
@@ -393,6 +452,498 @@ export default function SwarmExecutionPanel({
       default:
         return <Activity className="h-4 w-4 text-[rgb(var(--primary))]" />;
     }
+  };
+
+  // Improved data rendering function
+  const renderDataSection = (data: any) => {
+    if (!data || typeof data !== "object") {
+      return (
+        <pre className="text-xs text-[rgb(var(--foreground-muted))] bg-[rgb(var(--surface))] p-3 rounded overflow-x-auto font-mono whitespace-pre-wrap">
+          {JSON.stringify(data, null, 2)}
+        </pre>
+      );
+    }
+
+    // Render structured sections for different data types
+    return (
+      <div className="space-y-3">
+        {/* Incident Report */}
+        {data.incidentReport && (
+          <div className="bg-[rgb(var(--surface))] rounded-lg p-3 border border-[rgb(var(--border))]">
+            <div className="flex items-center gap-2 mb-2">
+              <AlertCircle className="h-3.5 w-3.5 text-[rgb(var(--warning))]" />
+              <span className="text-xs font-semibold text-[rgb(var(--foreground))]">
+                Incident Report
+              </span>
+            </div>
+            <div className="space-y-2 text-xs">
+              <div>
+                <span className="text-[rgb(var(--foreground-subtle))]">
+                  Container:
+                </span>{" "}
+                <span className="text-[rgb(var(--foreground))] font-medium">
+                  {data.incidentReport.containerName}
+                </span>
+              </div>
+              {data.incidentReport.symptoms &&
+                data.incidentReport.symptoms.length > 0 && (
+                  <div>
+                    <span className="text-[rgb(var(--foreground-subtle))]">
+                      Symptoms:
+                    </span>
+                    <ul className="ml-4 mt-1 list-disc text-[rgb(var(--foreground-muted))]">
+                      {data.incidentReport.symptoms.map(
+                        (symptom: string, idx: number) => (
+                          <li key={idx} className="leading-relaxed">
+                            {symptom}
+                          </li>
+                        ),
+                      )}
+                    </ul>
+                  </div>
+                )}
+              {data.incidentReport.timestamp && (
+                <div>
+                  <span className="text-[rgb(var(--foreground-subtle))]">
+                    Timestamp:
+                  </span>{" "}
+                  <span className="text-[rgb(var(--foreground-muted))]">
+                    {new Date(data.incidentReport.timestamp).toLocaleString()}
+                  </span>
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* Container Status */}
+        {data.dockerList && (
+          <div className="bg-[rgb(var(--surface))] rounded-lg p-3 border border-[rgb(var(--border))]">
+            <div className="flex items-center gap-2 mb-2">
+              <Activity className="h-3.5 w-3.5 text-[rgb(var(--primary))]" />
+              <span className="text-xs font-semibold text-[rgb(var(--foreground))]">
+                Container Status
+              </span>
+            </div>
+            <div className="grid grid-cols-2 gap-3 text-xs">
+              <div>
+                <div className="text-[rgb(var(--foreground-subtle))]">
+                  Total
+                </div>
+                <div className="text-sm font-semibold text-[rgb(var(--foreground))]">
+                  {data.dockerList.totalCount}
+                </div>
+              </div>
+              <div>
+                <div className="text-[rgb(var(--foreground-subtle))]">
+                  Running
+                </div>
+                <div className="text-sm font-semibold text-[rgb(var(--foreground))]">
+                  {data.dockerList.runningCount}
+                </div>
+              </div>
+              <div>
+                <div className="text-[rgb(var(--foreground-subtle))]">
+                  Healthy
+                </div>
+                <div className="text-sm font-semibold text-[rgb(var(--success))]">
+                  {data.dockerList.healthyCount}
+                </div>
+              </div>
+              <div>
+                <div className="text-[rgb(var(--foreground-subtle))]">
+                  Unhealthy
+                </div>
+                <div className="text-sm font-semibold text-[rgb(var(--error))]">
+                  {data.dockerList.unhealthyCount || 0}
+                </div>
+              </div>
+            </div>
+            {data.dockerList.containers &&
+              data.dockerList.containers.length > 0 && (
+                <div className="mt-3 pt-3 border-t border-[rgb(var(--border))]">
+                  <div className="text-[10px] font-medium text-[rgb(var(--foreground-subtle))] mb-2">
+                    CONTAINERS
+                  </div>
+                  <div className="space-y-1">
+                    {data.dockerList.containers.map(
+                      (container: any, idx: number) => (
+                        <div
+                          key={idx}
+                          className="flex items-center justify-between text-xs p-2 rounded bg-[rgb(var(--background))] border border-[rgb(var(--border))]"
+                        >
+                          <span className="text-[rgb(var(--foreground-muted))]">
+                            {container.name}
+                          </span>
+                          <div className="flex items-center gap-2">
+                            <span className="text-[10px] text-[rgb(var(--foreground-subtle))]">
+                              {container.status}
+                            </span>
+                            {container.health === "healthy" ? (
+                              <CheckCircle2 className="h-3 w-3 text-[rgb(var(--success))]" />
+                            ) : (
+                              <XCircle className="h-3 w-3 text-[rgb(var(--error))]" />
+                            )}
+                          </div>
+                        </div>
+                      ),
+                    )}
+                  </div>
+                </div>
+              )}
+          </div>
+        )}
+
+        {/* Health Check Details */}
+        {data.healthCheckScan && (
+          <div className="bg-[rgb(var(--surface))] rounded-lg p-3 border border-[rgb(var(--border))]">
+            <div className="flex items-center gap-2 mb-2">
+              <Activity className="h-3.5 w-3.5 text-[rgb(var(--primary))]" />
+              <span className="text-xs font-semibold text-[rgb(var(--foreground))]">
+                Health Check Scan
+              </span>
+            </div>
+            <div className="grid grid-cols-2 gap-3 text-xs mb-2">
+              <div>
+                <div className="text-[rgb(var(--foreground-subtle))]">
+                  Scanned
+                </div>
+                <div className="text-sm font-semibold text-[rgb(var(--foreground))]">
+                  {data.healthCheckScan.scannedCount}
+                </div>
+              </div>
+              <div>
+                <div className="text-[rgb(var(--foreground-subtle))]">
+                  Unhealthy
+                </div>
+                <div className="text-sm font-semibold text-[rgb(var(--error))]">
+                  {data.healthCheckScan.unhealthyCount}
+                </div>
+              </div>
+            </div>
+            {data.healthCheckScan.unhealthyContainers &&
+              data.healthCheckScan.unhealthyContainers.length > 0 && (
+                <div className="text-xs">
+                  <div className="text-[rgb(var(--foreground-subtle))] mb-1">
+                    Unhealthy:
+                  </div>
+                  <div className="flex flex-wrap gap-1">
+                    {data.healthCheckScan.unhealthyContainers.map(
+                      (name: string, idx: number) => (
+                        <span
+                          key={idx}
+                          className="px-2 py-0.5 rounded bg-[rgb(var(--error))]/10 text-[rgb(var(--error))] text-[10px] font-medium"
+                        >
+                          {name}
+                        </span>
+                      ),
+                    )}
+                  </div>
+                </div>
+              )}
+            {data.healthCheckScan.issues &&
+              data.healthCheckScan.issues.length > 0 && (
+                <div className="mt-2 text-xs">
+                  <div className="text-[rgb(var(--foreground-subtle))] mb-1">
+                    Issues:
+                  </div>
+                  <ul className="ml-4 list-disc text-[rgb(var(--foreground-muted))]">
+                    {data.healthCheckScan.issues.map(
+                      (issue: string, idx: number) => (
+                        <li key={idx} className="leading-relaxed">
+                          {issue}
+                        </li>
+                      ),
+                    )}
+                  </ul>
+                </div>
+              )}
+          </div>
+        )}
+
+        {/* Root Cause */}
+        {data.rootCause && (
+          <div className="bg-[rgb(var(--surface))] rounded-lg p-3 border border-[rgb(var(--border))]">
+            <div className="flex items-center gap-2 mb-2">
+              <AlertCircle className="h-3.5 w-3.5 text-[rgb(var(--warning))]" />
+              <span className="text-xs font-semibold text-[rgb(var(--foreground))]">
+                Root Cause Analysis
+              </span>
+            </div>
+            <p className="text-xs text-[rgb(var(--foreground-muted))] leading-relaxed mb-2">
+              {data.rootCause}
+            </p>
+            {data.severity && (
+              <div>
+                <span
+                  className={`inline-flex items-center px-2 py-0.5 rounded text-[10px] font-medium ${
+                    data.severity === "high" || data.severity === "critical"
+                      ? "bg-[rgb(var(--error))]/10 text-[rgb(var(--error))]"
+                      : data.severity === "medium"
+                        ? "bg-[rgb(var(--warning))]/10 text-[rgb(var(--warning))]"
+                        : "bg-[rgb(var(--success))]/10 text-[rgb(var(--success))]"
+                  }`}
+                >
+                  Severity: {data.severity.toUpperCase()}
+                </span>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* Selected Option / Recovery Strategy */}
+        {data.selectedOption && (
+          <div className="bg-[rgb(var(--surface))] rounded-lg p-3 border border-[rgb(var(--border))]">
+            <div className="flex items-center gap-2 mb-2">
+              <Zap className="h-3.5 w-3.5 text-[rgb(var(--success))]" />
+              <span className="text-xs font-semibold text-[rgb(var(--foreground))]">
+                Recommended Action
+              </span>
+            </div>
+            <p className="text-xs text-[rgb(var(--foreground-muted))] mb-2 leading-relaxed">
+              {data.selectedOption.description}
+            </p>
+            <div className="flex items-center gap-3 text-[10px] flex-wrap">
+              {data.selectedOption.estimatedDowntime && (
+                <span className="text-[rgb(var(--foreground-subtle))]">
+                  ⏱ {data.selectedOption.estimatedDowntime}
+                </span>
+              )}
+              {data.selectedOption.riskLevel && (
+                <span
+                  className={`px-1.5 py-0.5 rounded ${
+                    data.selectedOption.riskLevel === "low"
+                      ? "bg-[rgb(var(--success))]/10 text-[rgb(var(--success))]"
+                      : data.selectedOption.riskLevel === "medium"
+                        ? "bg-[rgb(var(--warning))]/10 text-[rgb(var(--warning))]"
+                        : "bg-[rgb(var(--error))]/10 text-[rgb(var(--error))]"
+                  }`}
+                >
+                  {data.selectedOption.riskLevel} risk
+                </span>
+              )}
+              {data.selectedOption.confidence && (
+                <span className="text-[rgb(var(--foreground-subtle))]">
+                  🎯 {Math.round((data.selectedOption.confidence || 0) * 100)}%
+                  confidence
+                </span>
+              )}
+            </div>
+            {data.selectedOption.actions &&
+              data.selectedOption.actions.length > 0 && (
+                <div className="mt-3 pt-3 border-t border-[rgb(var(--border))]">
+                  <div className="text-[10px] font-medium text-[rgb(var(--foreground-subtle))] mb-2">
+                    ACTIONS
+                  </div>
+                  <div className="space-y-1">
+                    {data.selectedOption.actions.map(
+                      (action: any, idx: number) => (
+                        <div
+                          key={idx}
+                          className="text-xs p-2 rounded bg-[rgb(var(--background))] border border-[rgb(var(--border))] font-mono"
+                        >
+                          <div className="text-[rgb(var(--primary))]">
+                            {action.type}
+                          </div>
+                          {Object.entries(action)
+                            .filter(([key]) => key !== "type")
+                            .map(([key, value]) => (
+                              <div
+                                key={key}
+                                className="text-[rgb(var(--foreground-muted))]"
+                              >
+                                {key}: {String(value)}
+                              </div>
+                            ))}
+                        </div>
+                      ),
+                    )}
+                  </div>
+                </div>
+              )}
+          </div>
+        )}
+
+        {/* Alternative Options */}
+        {data.alternativeOptions && data.alternativeOptions.length > 0 && (
+          <div className="bg-[rgb(var(--surface))] rounded-lg p-3 border border-[rgb(var(--border))]">
+            <div className="flex items-center gap-2 mb-2">
+              <FileText className="h-3.5 w-3.5 text-[rgb(var(--primary))]" />
+              <span className="text-xs font-semibold text-[rgb(var(--foreground))]">
+                Alternative Options
+              </span>
+            </div>
+            <div className="space-y-2">
+              {data.alternativeOptions.map((option: any, idx: number) => (
+                <div
+                  key={idx}
+                  className="p-2 rounded bg-[rgb(var(--background))] border border-[rgb(var(--border))]"
+                >
+                  <div className="text-xs text-[rgb(var(--foreground-muted))] leading-relaxed">
+                    {option.description}
+                  </div>
+                  <div className="flex items-center gap-2 mt-1">
+                    <span
+                      className={`text-[10px] px-1.5 py-0.5 rounded ${
+                        option.riskLevel === "low"
+                          ? "bg-[rgb(var(--success))]/10 text-[rgb(var(--success))]"
+                          : option.riskLevel === "medium"
+                            ? "bg-[rgb(var(--warning))]/10 text-[rgb(var(--warning))]"
+                            : "bg-[rgb(var(--error))]/10 text-[rgb(var(--error))]"
+                      }`}
+                    >
+                      {option.riskLevel}
+                    </span>
+                    {option.confidence && (
+                      <span className="text-[10px] text-[rgb(var(--foreground-subtle))]">
+                        {Math.round(option.confidence * 100)}% confidence
+                      </span>
+                    )}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* Risk Check Result */}
+        {data.approval && (
+          <div className="bg-[rgb(var(--surface))] rounded-lg p-3 border border-[rgb(var(--border))]">
+            <div className="flex items-center gap-2 mb-2">
+              <Shield className="h-3.5 w-3.5 text-[rgb(var(--primary))]" />
+              <span className="text-xs font-semibold text-[rgb(var(--foreground))]">
+                Risk Assessment
+              </span>
+            </div>
+            <div className="flex items-center gap-2 mb-2">
+              {data.approval === "approved" ? (
+                <CheckCircle2 className="h-4 w-4 text-[rgb(var(--success))]" />
+              ) : (
+                <AlertTriangle className="h-4 w-4 text-[rgb(var(--warning))]" />
+              )}
+              <span
+                className={`text-xs font-medium ${
+                  data.approval === "approved"
+                    ? "text-[rgb(var(--success))]"
+                    : "text-[rgb(var(--warning))]"
+                }`}
+              >
+                {data.approval === "approved" ? "Approved" : "Pending Approval"}
+              </span>
+              {data.requiresHumanApproval && (
+                <span className="text-[10px] px-2 py-0.5 rounded bg-[rgb(var(--warning))]/10 text-[rgb(var(--warning))]">
+                  Human approval required
+                </span>
+              )}
+            </div>
+            {data.riskNotes && (
+              <p className="text-xs text-[rgb(var(--foreground-muted))] leading-relaxed">
+                {data.riskNotes}
+              </p>
+            )}
+          </div>
+        )}
+
+        {/* Proposed Action Details */}
+        {data.proposedAction && (
+          <div className="bg-[rgb(var(--surface))] rounded-lg p-3 border border-[rgb(var(--border))]">
+            <div className="flex items-center gap-2 mb-2">
+              <Terminal className="h-3.5 w-3.5 text-[rgb(var(--primary))]" />
+              <span className="text-xs font-semibold text-[rgb(var(--foreground))]">
+                Proposed Action
+              </span>
+            </div>
+            <p className="text-xs text-[rgb(var(--foreground-muted))] mb-2 leading-relaxed">
+              {data.proposedAction.description}
+            </p>
+            {data.proposedAction.actions &&
+              data.proposedAction.actions.length > 0 && (
+                <div className="space-y-1">
+                  {data.proposedAction.actions.map(
+                    (action: any, idx: number) => (
+                      <div
+                        key={idx}
+                        className="text-xs p-2 rounded bg-[rgb(var(--background))] border border-[rgb(var(--border))] font-mono text-[rgb(var(--foreground-muted))]"
+                      >
+                        {action.type}:{" "}
+                        {JSON.stringify(action).substring(0, 100)}
+                      </div>
+                    ),
+                  )}
+                </div>
+              )}
+          </div>
+        )}
+
+        {/* Final Decision */}
+        {data.action && (
+          <div className="bg-[rgb(var(--surface))] rounded-lg p-3 border border-[rgb(var(--border))]">
+            <div className="flex items-center gap-2 mb-2">
+              <CheckCircle2 className="h-3.5 w-3.5 text-[rgb(var(--success))]" />
+              <span className="text-xs font-semibold text-[rgb(var(--foreground))]">
+                Final Decision
+              </span>
+            </div>
+            <div className="mb-2">
+              <span className="inline-flex items-center px-2 py-1 rounded text-xs font-medium bg-[rgb(var(--success))]/10 text-[rgb(var(--success))]">
+                Action: {data.action.toUpperCase()}
+              </span>
+            </div>
+            {data.notes && (
+              <p className="text-xs text-[rgb(var(--foreground-muted))] mb-2 leading-relaxed">
+                {data.notes}
+              </p>
+            )}
+            {data.confidenceScore && (
+              <div className="flex items-center gap-2">
+                <div className="flex-1 h-1.5 bg-[rgb(var(--border))] rounded-full overflow-hidden">
+                  <div
+                    className="h-full bg-[rgb(var(--success))] rounded-full"
+                    style={{ width: `${data.confidenceScore * 100}%` }}
+                  />
+                </div>
+                <span className="text-[10px] text-[rgb(var(--foreground-subtle))]">
+                  {Math.round(data.confidenceScore * 100)}% confidence
+                </span>
+              </div>
+            )}
+            {data.timestamp && (
+              <div className="mt-2 text-[10px] text-[rgb(var(--foreground-subtle))]">
+                {new Date(data.timestamp).toLocaleString()}
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* Log Snippets */}
+        {data.logSnippets && data.logSnippets.length > 0 && (
+          <div className="bg-[rgb(var(--surface))] rounded-lg p-3 border border-[rgb(var(--border))]">
+            <div className="flex items-center gap-2 mb-2">
+              <FileText className="h-3.5 w-3.5 text-[rgb(var(--primary))]" />
+              <span className="text-xs font-semibold text-[rgb(var(--foreground))]">
+                Log Snippets
+              </span>
+            </div>
+            <div className="space-y-1.5">
+              {data.logSnippets.map((log: any, idx: number) => (
+                <div
+                  key={idx}
+                  className="text-[10px] font-mono bg-[rgb(var(--background))] p-2 rounded border border-[rgb(var(--border))]"
+                >
+                  <span className="text-[rgb(var(--foreground-subtle))]">
+                    {new Date(log.timestamp).toLocaleTimeString()}
+                  </span>
+                  <span className="mx-1.5 text-[rgb(var(--border))]">|</span>
+                  <span className="text-[rgb(var(--foreground-muted))]">
+                    {log.message}
+                  </span>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+      </div>
+    );
   };
 
   return (
@@ -494,7 +1045,7 @@ export default function SwarmExecutionPanel({
                             {new Date(message.timestamp).toLocaleTimeString()}
                           </span>
                         </div>
-                        <p className="text-sm text-[rgb(var(--foreground-muted))]">
+                        <p className="text-sm text-[rgb(var(--foreground-muted))] leading-relaxed">
                           {message.message}
                         </p>
                       </div>
@@ -518,15 +1069,13 @@ export default function SwarmExecutionPanel({
                         exit={{ height: 0, opacity: 0 }}
                         className="border-t border-[rgb(var(--border))] bg-[rgb(var(--background))] p-4"
                       >
-                        <div className="flex items-center gap-2 mb-2">
+                        <div className="flex items-center gap-2 mb-3">
                           <Terminal className="h-3 w-3 text-[rgb(var(--foreground-subtle))]" />
                           <span className="text-xs font-medium text-[rgb(var(--foreground-muted))]">
-                            Data
+                            Details
                           </span>
                         </div>
-                        <pre className="text-xs text-[rgb(var(--foreground-muted))] bg-[rgb(var(--surface))] p-3 rounded overflow-x-auto font-mono">
-                          {JSON.stringify(message.data, null, 2)}
-                        </pre>
+                        {renderDataSection(message.data)}
                       </motion.div>
                     )}
                   </AnimatePresence>

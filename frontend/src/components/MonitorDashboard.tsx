@@ -32,6 +32,8 @@ import {
   X as CloseIcon,
   Cpu,
   MemoryStick,
+  Info,
+  Zap,
 } from "lucide-react";
 import { io, Socket } from "socket.io-client";
 
@@ -253,8 +255,6 @@ export default function MonitorDashboard({ onClose }: { onClose: () => void }) {
   const handleStartMonitoring = async () => {
     try {
       console.log("🟢 Starting monitoring...");
-      console.log("Session ID:", sessionId);
-      console.log("Settings:", settings);
 
       const response = await fetch(
         `${process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000"}/api/monitor/start`,
@@ -274,7 +274,6 @@ export default function MonitorDashboard({ onClose }: { onClose: () => void }) {
       );
 
       const data = await response.json();
-      console.log("Response:", data);
 
       if (data.success) {
         setIsMonitoring(true);
@@ -355,6 +354,7 @@ export default function MonitorDashboard({ onClose }: { onClose: () => void }) {
             <button
               onClick={onClose}
               className="p-2 rounded-lg hover:surface transition-colors"
+              title="Close"
             >
               <CloseIcon className="h-5 w-5 text-[rgb(var(--foreground-muted))]" />
             </button>
@@ -378,10 +378,14 @@ export default function MonitorDashboard({ onClose }: { onClose: () => void }) {
           <div className="flex items-center gap-3">
             <button
               onClick={() => setShowSettings(!showSettings)}
-              className="p-2 rounded-lg hover:surface transition-colors"
+              className={`p-2 rounded-lg transition-colors ${
+                showSettings
+                  ? "bg-[rgb(var(--primary))]/10 text-[rgb(var(--primary))]"
+                  : "hover:surface text-[rgb(var(--foreground-muted))]"
+              }`}
               title="Settings"
             >
-              <Settings className="h-4 w-4 text-[rgb(var(--foreground-muted))]" />
+              <Settings className="h-4 w-4" />
             </button>
 
             {!isMonitoring ? (
@@ -389,7 +393,7 @@ export default function MonitorDashboard({ onClose }: { onClose: () => void }) {
                 onClick={handleStartMonitoring}
                 className="px-4 py-2 rounded-lg bg-[rgb(var(--primary))] hover:bg-[rgb(var(--primary-hover))] text-[rgb(var(--primary-foreground))] text-sm font-medium transition-colors flex items-center gap-2"
               >
-                <Play className="h-4 w-4" />
+                <Play className="h-4 w-4 fill-current" />
                 Start Monitoring
               </button>
             ) : (
@@ -398,7 +402,7 @@ export default function MonitorDashboard({ onClose }: { onClose: () => void }) {
                 className="px-4 py-2 rounded-lg bg-[rgb(var(--error))] hover:bg-[rgb(var(--error))]/90 text-white text-sm font-medium transition-colors flex items-center gap-2"
               >
                 <Pause className="h-4 w-4" />
-                Stop Monitoring
+                Stop
               </button>
             )}
           </div>
@@ -427,8 +431,10 @@ export default function MonitorDashboard({ onClose }: { onClose: () => void }) {
                         interval: parseInt(e.target.value),
                       }))
                     }
-                    className="w-full px-3 py-2 rounded-lg border border-[rgb(var(--border))] surface-elevated text-sm"
+                    className="w-full px-3 py-2 rounded-lg border border-[rgb(var(--border))] surface-elevated text-sm text-[rgb(var(--foreground))] focus:outline-none focus:ring-2 focus:ring-[rgb(var(--primary))]/20"
                     disabled={isMonitoring}
+                    min="10"
+                    max="300"
                   />
                 </div>
                 <div className="flex items-center gap-2">
@@ -442,7 +448,7 @@ export default function MonitorDashboard({ onClose }: { onClose: () => void }) {
                         autoFix: e.target.checked,
                       }))
                     }
-                    className="rounded"
+                    className="w-4 h-4 rounded border-[rgb(var(--border))] text-[rgb(var(--primary))] focus:ring-[rgb(var(--primary))]/20"
                     disabled={isMonitoring}
                   />
                   <label
@@ -463,7 +469,7 @@ export default function MonitorDashboard({ onClose }: { onClose: () => void }) {
                         alertOnChange: e.target.checked,
                       }))
                     }
-                    className="rounded"
+                    className="w-4 h-4 rounded border-[rgb(var(--border))] text-[rgb(var(--primary))] focus:ring-[rgb(var(--primary))]/20"
                     disabled={isMonitoring}
                   />
                   <label
@@ -481,7 +487,7 @@ export default function MonitorDashboard({ onClose }: { onClose: () => void }) {
 
       {/* Main Content */}
       <div className="flex-1 overflow-auto p-6">
-        <div className="max-w-6xl mx-auto space-y-6">
+        <div className="max-w-7xl mx-auto space-y-6">
           {!isMonitoring ? (
             <motion.div
               initial={{ opacity: 0, y: 20 }}
@@ -502,53 +508,55 @@ export default function MonitorDashboard({ onClose }: { onClose: () => void }) {
                 onClick={handleStartMonitoring}
                 className="px-6 py-3 rounded-lg bg-[rgb(var(--primary))] hover:bg-[rgb(var(--primary-hover))] text-[rgb(var(--primary-foreground))] font-medium transition-colors flex items-center gap-2 mx-auto"
               >
-                <Play className="h-4 w-4" />
+                <Play className="h-4 w-4 fill-current" />
                 Start Monitoring
               </button>
             </motion.div>
           ) : (
             <>
-              {/* Status Card */}
+              {/* Status Overview Card */}
               <motion.div
                 initial={{ opacity: 0, y: -20 }}
                 animate={{ opacity: 1, y: 0 }}
                 className="rounded-xl border border-[rgb(var(--border))] surface-elevated p-6"
               >
-                <div className="flex items-center justify-between mb-4">
+                <div className="flex items-center justify-between mb-6">
                   <div className="flex items-center gap-3">
                     <div className="relative">
                       <div className="w-10 h-10 rounded-lg bg-[rgb(var(--primary))]/10 border border-[rgb(var(--primary))]/20 flex items-center justify-center">
-                        {!isPaused ? (
-                          <motion.div
-                            animate={{ scale: [1, 1.1, 1] }}
-                            transition={{ duration: 2, repeat: Infinity }}
-                          >
-                            <Activity className="h-5 w-5 text-[rgb(var(--primary))]" />
-                          </motion.div>
-                        ) : (
-                          <Pause className="h-5 w-5 text-[rgb(var(--warning))]" />
-                        )}
-                      </div>
-                      {!isPaused && (
                         <motion.div
-                          className="absolute -top-1 -right-1 w-3 h-3 bg-[rgb(var(--success))] rounded-full border-2 border-[rgb(var(--surface-elevated))]"
-                          animate={{ opacity: [1, 0.3, 1] }}
-                          transition={{ duration: 1.5, repeat: Infinity }}
-                        />
-                      )}
+                          animate={{ scale: [1, 1.1, 1] }}
+                          transition={{ duration: 2, repeat: Infinity }}
+                        >
+                          <Activity className="h-5 w-5 text-[rgb(var(--primary))]" />
+                        </motion.div>
+                      </div>
+                      <motion.div
+                        className="absolute -top-1 -right-1 w-3 h-3 bg-[rgb(var(--success))] rounded-full border-2 border-[rgb(var(--surface-elevated))]"
+                        animate={{ opacity: [1, 0.3, 1] }}
+                        transition={{ duration: 1.5, repeat: Infinity }}
+                      />
                     </div>
 
                     <div>
-                      <h3 className="text-base font-bold text-[rgb(var(--foreground))] flex items-center gap-2">
+                      <h3 className="text-base font-bold text-[rgb(var(--foreground))]">
                         Monitoring Status
-                        <span className="text-[10px] px-2 py-0.5 rounded-full bg-[rgb(var(--success))]/10 text-[rgb(var(--success))] font-medium border border-[rgb(var(--success))]/20">
-                          {isPaused ? "PAUSED" : "ACTIVE"}
-                        </span>
                       </h3>
                       <div className="flex items-center gap-2 text-xs text-[rgb(var(--foreground-muted))] mt-1">
                         <span>{formatUptime(stats.uptime)}</span>
                         <span>•</span>
                         <span>Check #{stats.checkCount}</span>
+                        {stats.lastCheckTime && (
+                          <>
+                            <span>•</span>
+                            <span>
+                              Last:{" "}
+                              {new Date(
+                                stats.lastCheckTime,
+                              ).toLocaleTimeString()}
+                            </span>
+                          </>
+                        )}
                       </div>
                     </div>
                   </div>
@@ -559,8 +567,9 @@ export default function MonitorDashboard({ onClose }: { onClose: () => void }) {
                       className={`p-2 rounded-lg transition-colors ${
                         showAlerts
                           ? "bg-[rgb(var(--primary))]/10 text-[rgb(var(--primary))]"
-                          : "surface text-[rgb(var(--foreground-muted))]"
+                          : "hover:surface text-[rgb(var(--foreground-muted))]"
                       }`}
+                      title={showAlerts ? "Hide alerts" : "Show alerts"}
                     >
                       {showAlerts ? (
                         <Eye className="h-4 w-4" />
@@ -574,8 +583,9 @@ export default function MonitorDashboard({ onClose }: { onClose: () => void }) {
                       className={`p-2 rounded-lg transition-colors ${
                         soundEnabled
                           ? "bg-[rgb(var(--primary))]/10 text-[rgb(var(--primary))]"
-                          : "surface text-[rgb(var(--foreground-muted))]"
+                          : "hover:surface text-[rgb(var(--foreground-muted))]"
                       }`}
+                      title={soundEnabled ? "Mute alerts" : "Unmute alerts"}
                     >
                       {soundEnabled ? (
                         <Bell className="h-4 w-4" />
@@ -590,24 +600,28 @@ export default function MonitorDashboard({ onClose }: { onClose: () => void }) {
                   <StatCard
                     label="Total"
                     value={stats.totalContainers}
+                    icon={Terminal}
                     color="text-[rgb(var(--foreground))]"
                     bg="surface"
                   />
                   <StatCard
                     label="Healthy"
                     value={stats.healthyCount}
+                    icon={CheckCircle2}
                     color="text-[rgb(var(--success))]"
                     bg="bg-[rgb(var(--success))]/10"
                   />
                   <StatCard
                     label="Warning"
                     value={stats.warningCount}
+                    icon={AlertTriangle}
                     color="text-[rgb(var(--warning))]"
                     bg="bg-[rgb(var(--warning))]/10"
                   />
                   <StatCard
                     label="Critical"
                     value={stats.criticalCount}
+                    icon={XCircle}
                     color="text-[rgb(var(--error))]"
                     bg="bg-[rgb(var(--error))]/10"
                     pulse={stats.criticalCount > 0}
@@ -670,10 +684,15 @@ export default function MonitorDashboard({ onClose }: { onClose: () => void }) {
                   animate={{ opacity: 1, y: 0 }}
                   className="rounded-xl border border-[rgb(var(--border))] surface-elevated p-6"
                 >
-                  <h3 className="text-base font-bold text-[rgb(var(--foreground))] mb-4">
-                    Recent Alerts
-                  </h3>
-                  <div className="space-y-2 max-h-64 overflow-auto">
+                  <div className="flex items-center justify-between mb-4">
+                    <h3 className="text-base font-bold text-[rgb(var(--foreground))]">
+                      Recent Alerts
+                    </h3>
+                    <span className="text-xs text-[rgb(var(--foreground-muted))]">
+                      Last {Math.min(alerts.length, 10)} alerts
+                    </span>
+                  </div>
+                  <div className="space-y-2 max-h-96 overflow-auto">
                     {alerts
                       .slice(-10)
                       .reverse()
@@ -719,19 +738,19 @@ function ContainerSection({
     CRITICAL: {
       icon: XCircle,
       color: "text-[rgb(var(--error))]",
-      bg: "bg-[rgb(var(--error))]/10",
+      bg: "bg-[rgb(var(--error))]/5",
       border: "border-[rgb(var(--error))]/20",
     },
     WARNING: {
       icon: AlertTriangle,
       color: "text-[rgb(var(--warning))]",
-      bg: "bg-[rgb(var(--warning))]/10",
+      bg: "bg-[rgb(var(--warning))]/5",
       border: "border-[rgb(var(--warning))]/20",
     },
     HEALTHY: {
       icon: CheckCircle2,
       color: "text-[rgb(var(--success))]",
-      bg: "bg-[rgb(var(--success))]/10",
+      bg: "bg-[rgb(var(--success))]/5",
       border: "border-[rgb(var(--success))]/20",
     },
   };
@@ -743,16 +762,16 @@ function ContainerSection({
     <motion.div
       initial={{ opacity: 0, y: 20 }}
       animate={{ opacity: 1, y: 0 }}
-      className={`rounded-xl border ${config.border} surface-elevated p-6`}
+      className="rounded-xl border border-[rgb(var(--border))] surface-elevated p-6"
     >
       <div className="flex items-center gap-2 mb-4">
         <Icon className={`h-5 w-5 ${config.color}`} />
         <h3 className="text-base font-bold text-[rgb(var(--foreground))]">
           {title}
-          <span className="ml-2 text-sm font-normal text-[rgb(var(--foreground-muted))]">
-            ({containers.length})
-          </span>
         </h3>
+        <span className="text-sm text-[rgb(var(--foreground-muted))]">
+          ({containers.length})
+        </span>
       </div>
 
       <div className="space-y-3">
@@ -807,96 +826,100 @@ function ContainerCard({
 }) {
   return (
     <div
-      className={`rounded-lg border ${config.border} ${config.bg} p-4 transition-all`}
+      className={`rounded-lg border ${config.border} ${config.bg} overflow-hidden transition-all`}
     >
       {/* Container Header */}
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-3 flex-1">
-          <div
-            className={`p-2 rounded-lg ${config.bg} border ${config.border}`}
-          >
-            <Terminal className={`h-4 w-4 ${config.color}`} />
-          </div>
-
-          <div className="flex-1">
-            <div className="font-medium text-[rgb(var(--foreground))]">
-              {container.containerName}
-            </div>
-            <div className="flex items-center gap-4 mt-1">
-              <div className="flex items-center gap-1 text-xs text-[rgb(var(--foreground-muted))]">
-                <Cpu className="h-3 w-3" />
-                <span>{container.cpuPercent}</span>
-              </div>
-              <div className="flex items-center gap-1 text-xs text-[rgb(var(--foreground-muted))]">
-                <MemoryStick className="h-3 w-3" />
-                <span>{container.memPercent}</span>
-              </div>
-              {container.httpHealthStatus?.checked && (
-                <div className="flex items-center gap-1 text-xs text-[rgb(var(--foreground-muted))]">
-                  {container.httpHealthStatus.healthy ? (
-                    <Wifi className="h-3 w-3 text-[rgb(var(--success))]" />
-                  ) : (
-                    <WifiOff className="h-3 w-3 text-[rgb(var(--error))]" />
-                  )}
-                  <span>
-                    {container.httpHealthStatus.healthy ? "Online" : "Offline"}
-                  </span>
-                </div>
-              )}
-            </div>
-          </div>
-        </div>
-
-        <div className="flex items-center gap-2">
-          {container.severity === "CRITICAL" && (
-            <button
-              onClick={onFix}
-              disabled={isFixing}
-              className="px-3 py-1.5 rounded-lg bg-[rgb(var(--primary))] hover:bg-[rgb(var(--primary-hover))] text-[rgb(var(--primary-foreground))] text-xs font-medium transition-colors flex items-center gap-1.5 disabled:opacity-50"
+      <div className="p-4">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-3 flex-1 min-w-0">
+            <div
+              className={`flex-shrink-0 p-2 rounded-lg ${config.bg} border ${config.border}`}
             >
-              {isFixing ? (
-                <>
-                  <Loader2 className="h-3 w-3 animate-spin" />
-                  Fixing...
-                </>
+              <Terminal className={`h-4 w-4 ${config.color}`} />
+            </div>
+
+            <div className="flex-1 min-w-0">
+              <div className="font-medium text-[rgb(var(--foreground))] truncate">
+                {container.containerName}
+              </div>
+              <div className="flex items-center gap-4 mt-1">
+                <div className="flex items-center gap-1.5 text-xs text-[rgb(var(--foreground-muted))]">
+                  <Cpu className="h-3 w-3 flex-shrink-0" />
+                  <span>{container.cpuPercent}</span>
+                </div>
+                <div className="flex items-center gap-1.5 text-xs text-[rgb(var(--foreground-muted))]">
+                  <MemoryStick className="h-3 w-3 flex-shrink-0" />
+                  <span>{container.memPercent}</span>
+                </div>
+                {container.httpHealthStatus?.checked && (
+                  <div className="flex items-center gap-1.5 text-xs text-[rgb(var(--foreground-muted))]">
+                    {container.httpHealthStatus.healthy ? (
+                      <Wifi className="h-3 w-3 text-[rgb(var(--success))] flex-shrink-0" />
+                    ) : (
+                      <WifiOff className="h-3 w-3 text-[rgb(var(--error))] flex-shrink-0" />
+                    )}
+                    <span>
+                      {container.httpHealthStatus.healthy
+                        ? "Online"
+                        : "Offline"}
+                    </span>
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-2 flex-shrink-0">
+            {container.severity === "CRITICAL" && (
+              <button
+                onClick={onFix}
+                disabled={isFixing}
+                className="px-3 py-1.5 rounded-lg bg-[rgb(var(--primary))] hover:bg-[rgb(var(--primary-hover))] text-[rgb(var(--primary-foreground))] text-xs font-medium transition-colors flex items-center gap-1.5 disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {isFixing ? (
+                  <>
+                    <Loader2 className="h-3 w-3 animate-spin" />
+                    Fixing
+                  </>
+                ) : (
+                  <>
+                    <Sparkles className="h-3 w-3" />
+                    AI Fix
+                  </>
+                )}
+              </button>
+            )}
+
+            <button
+              onClick={onToggle}
+              className="p-2 rounded-lg hover:surface transition-colors"
+            >
+              {isExpanded ? (
+                <ChevronUp className="h-4 w-4 text-[rgb(var(--foreground-muted))]" />
               ) : (
-                <>
-                  <Sparkles className="h-3 w-3" />
-                  AI Fix
-                </>
+                <ChevronDown className="h-4 w-4 text-[rgb(var(--foreground-muted))]" />
               )}
             </button>
-          )}
-
-          <button
-            onClick={onToggle}
-            className="p-2 rounded-lg hover:surface transition-colors"
-          >
-            {isExpanded ? (
-              <ChevronUp className="h-4 w-4 text-[rgb(var(--foreground-muted))]" />
-            ) : (
-              <ChevronDown className="h-4 w-4 text-[rgb(var(--foreground-muted))]" />
-            )}
-          </button>
+          </div>
         </div>
+
+        {/* Container Issues */}
+        {container.issues && container.issues.length > 0 && (
+          <div className="mt-3 space-y-1.5">
+            {container.issues.map((issue, idx) => (
+              <div
+                key={idx}
+                className="text-xs text-[rgb(var(--foreground-muted))] flex items-start gap-2"
+              >
+                <AlertCircle
+                  className={`h-3.5 w-3.5 mt-0.5 ${config.color} flex-shrink-0`}
+                />
+                <span className="leading-relaxed">{issue}</span>
+              </div>
+            ))}
+          </div>
+        )}
       </div>
-
-      {/* Container Issues */}
-      {container.issues && container.issues.length > 0 && (
-        <div className="mt-3 space-y-1">
-          {container.issues.map((issue, idx) => (
-            <div
-              key={idx}
-              className="text-xs text-[rgb(var(--foreground-muted))] flex items-start gap-2"
-            >
-              <AlertCircle
-                className={`h-3 w-3 mt-0.5 ${config.color} flex-shrink-0`}
-              />
-              <span>{issue}</span>
-            </div>
-          ))}
-        </div>
-      )}
 
       {/* AI Fix Progress */}
       <AnimatePresence>
@@ -905,62 +928,73 @@ function ContainerCard({
             initial={{ height: 0, opacity: 0 }}
             animate={{ height: "auto", opacity: 1 }}
             exit={{ height: 0, opacity: 0 }}
-            className="mt-3 p-3 rounded-lg bg-[rgb(var(--primary))]/5 border border-[rgb(var(--primary))]/20"
+            className="border-t border-[rgb(var(--border))] bg-[rgb(var(--primary))]/5 p-4"
           >
-            <div className="flex items-center gap-2 mb-2">
-              <Brain className="h-4 w-4 text-[rgb(var(--primary))]" />
-              <span className="text-sm font-medium text-[rgb(var(--foreground))]">
-                AI Analysis
-              </span>
-            </div>
+            <div className="flex items-start gap-3">
+              <Brain className="h-4 w-4 text-[rgb(var(--primary))] flex-shrink-0 mt-0.5" />
+              <div className="flex-1 min-w-0">
+                <div className="text-sm font-medium text-[rgb(var(--foreground))] mb-2">
+                  AI Analysis in Progress
+                </div>
 
-            {aiFixProgress.stage === "analyzing" && (
-              <div className="text-xs text-[rgb(var(--foreground-muted))]">
-                Analyzing container logs...
-              </div>
-            )}
+                {aiFixProgress.stage === "analyzing" && (
+                  <div className="text-xs text-[rgb(var(--foreground-muted))]">
+                    Analyzing container logs and system state...
+                  </div>
+                )}
 
-            {aiFixProgress.stage === "analysis_complete" &&
-              aiFixProgress.analysis && (
-                <div className="space-y-2">
-                  <div className="text-xs">
-                    <span className="font-medium text-[rgb(var(--foreground))]">
-                      Summary:
-                    </span>{" "}
-                    <span className="text-[rgb(var(--foreground-muted))]">
-                      {aiFixProgress.analysis.summary}
-                    </span>
-                  </div>
-                  <div className="text-xs">
-                    <span className="font-medium text-[rgb(var(--foreground))]">
-                      Root Cause:
-                    </span>{" "}
-                    <span className="text-[rgb(var(--foreground-muted))]">
-                      {aiFixProgress.analysis.rootCause}
-                    </span>
-                  </div>
-                  {aiFixProgress.analysis.suggestedFixes.length > 0 && (
-                    <div className="text-xs">
-                      <span className="font-medium text-[rgb(var(--foreground))]">
-                        Suggested Fixes:
-                      </span>
-                      <ul className="ml-4 mt-1 list-disc text-[rgb(var(--foreground-muted))]">
-                        {aiFixProgress.analysis.suggestedFixes.map(
-                          (fix, idx) => (
-                            <li key={idx}>{fix}</li>
-                          ),
-                        )}
-                      </ul>
+                {aiFixProgress.stage === "analysis_complete" &&
+                  aiFixProgress.analysis && (
+                    <div className="space-y-2">
+                      <div className="p-3 rounded-lg surface border border-[rgb(var(--border))]">
+                        <div className="text-xs font-medium text-[rgb(var(--foreground))] mb-1">
+                          Summary
+                        </div>
+                        <p className="text-xs text-[rgb(var(--foreground-muted))] leading-relaxed">
+                          {aiFixProgress.analysis.summary}
+                        </p>
+                      </div>
+
+                      <div className="p-3 rounded-lg surface border border-[rgb(var(--border))]">
+                        <div className="text-xs font-medium text-[rgb(var(--foreground))] mb-1">
+                          Root Cause
+                        </div>
+                        <p className="text-xs text-[rgb(var(--foreground-muted))] leading-relaxed">
+                          {aiFixProgress.analysis.rootCause}
+                        </p>
+                      </div>
+
+                      {aiFixProgress.analysis.suggestedFixes.length > 0 && (
+                        <div className="p-3 rounded-lg surface border border-[rgb(var(--border))]">
+                          <div className="text-xs font-medium text-[rgb(var(--foreground))] mb-2">
+                            Suggested Fixes
+                          </div>
+                          <div className="space-y-1.5">
+                            {aiFixProgress.analysis.suggestedFixes.map(
+                              (fix, idx) => (
+                                <div
+                                  key={idx}
+                                  className="flex items-start gap-2 text-xs text-[rgb(var(--foreground-muted))]"
+                                >
+                                  <Zap className="h-3 w-3 text-[rgb(var(--primary))] flex-shrink-0 mt-0.5" />
+                                  <span className="leading-relaxed">{fix}</span>
+                                </div>
+                              ),
+                            )}
+                          </div>
+                        </div>
+                      )}
                     </div>
                   )}
-                </div>
-              )}
 
-            {aiFixProgress.stage === "applying_fix" && (
-              <div className="text-xs text-[rgb(var(--foreground-muted))]">
-                {aiFixProgress.message || "Applying fix..."}
+                {aiFixProgress.stage === "applying_fix" && (
+                  <div className="flex items-center gap-2 text-xs text-[rgb(var(--foreground-muted))]">
+                    <Loader2 className="h-3 w-3 animate-spin text-[rgb(var(--primary))]" />
+                    <span>{aiFixProgress.message || "Applying fix..."}</span>
+                  </div>
+                )}
               </div>
-            )}
+            </div>
           </motion.div>
         )}
       </AnimatePresence>
@@ -972,58 +1006,71 @@ function ContainerCard({
             initial={{ height: 0, opacity: 0 }}
             animate={{ height: "auto", opacity: 1 }}
             exit={{ height: 0, opacity: 0 }}
-            className="mt-3 pt-3 border-t border-[rgb(var(--border))]"
+            className="border-t border-[rgb(var(--border))] bg-[rgb(var(--background))] p-4 space-y-3"
           >
             {/* HTTP Health Status */}
             {container.httpHealthStatus?.checked && (
-              <div className="mb-3 p-3 rounded-lg surface border border-[rgb(var(--border))]">
-                <div className="flex items-center gap-2 mb-2">
+              <div className="p-3 rounded-lg surface border border-[rgb(var(--border))]">
+                <div className="flex items-center gap-2 mb-3">
                   <Globe className="h-4 w-4 text-[rgb(var(--primary))]" />
                   <span className="text-sm font-medium text-[rgb(var(--foreground))]">
                     HTTP Health Check
                   </span>
                 </div>
-                <div className="grid grid-cols-2 gap-2 text-xs">
-                  <div>
-                    <span className="text-[rgb(var(--foreground-muted))]">
-                      Status:
-                    </span>{" "}
-                    <span
-                      className={
-                        container.httpHealthStatus.healthy
-                          ? "text-[rgb(var(--success))]"
-                          : "text-[rgb(var(--error))]"
-                      }
-                    >
-                      {container.httpHealthStatus.healthy
-                        ? "Healthy"
-                        : "Unhealthy"}
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="text-xs">
+                    <span className="text-[rgb(var(--foreground-subtle))]">
+                      Status
                     </span>
+                    <div className="mt-1">
+                      <span
+                        className={`inline-flex items-center gap-1.5 px-2 py-1 rounded text-xs font-medium ${
+                          container.httpHealthStatus.healthy
+                            ? "bg-[rgb(var(--success))]/10 text-[rgb(var(--success))]"
+                            : "bg-[rgb(var(--error))]/10 text-[rgb(var(--error))]"
+                        }`}
+                      >
+                        {container.httpHealthStatus.healthy ? (
+                          <CheckCircle2 className="h-3 w-3" />
+                        ) : (
+                          <XCircle className="h-3 w-3" />
+                        )}
+                        {container.httpHealthStatus.healthy
+                          ? "Healthy"
+                          : "Unhealthy"}
+                      </span>
+                    </div>
                   </div>
                   {container.httpHealthStatus.statusCode && (
-                    <div>
-                      <span className="text-[rgb(var(--foreground-muted))]">
-                        Status Code:
-                      </span>{" "}
-                      {container.httpHealthStatus.statusCode}
+                    <div className="text-xs">
+                      <span className="text-[rgb(var(--foreground-subtle))]">
+                        Status Code
+                      </span>
+                      <div className="mt-1 text-[rgb(var(--foreground))] font-medium">
+                        {container.httpHealthStatus.statusCode}
+                      </div>
                     </div>
                   )}
-                  {container.httpHealthStatus.responseTime && (
-                    <div>
-                      <span className="text-[rgb(var(--foreground-muted))]">
-                        Response Time:
-                      </span>{" "}
-                      {container.httpHealthStatus.responseTime}ms
+                  {container.httpHealthStatus.responseTime !== undefined && (
+                    <div className="text-xs">
+                      <span className="text-[rgb(var(--foreground-subtle))]">
+                        Response Time
+                      </span>
+                      <div className="mt-1 text-[rgb(var(--foreground))] font-medium">
+                        {container.httpHealthStatus.responseTime}ms
+                      </div>
                     </div>
                   )}
                   {container.httpHealthStatus.checkedUrl && (
-                    <div className="col-span-2">
-                      <span className="text-[rgb(var(--foreground-muted))]">
-                        URL:
-                      </span>{" "}
-                      <code className="text-xs bg-[rgb(var(--surface))] px-1 py-0.5 rounded">
-                        {container.httpHealthStatus.checkedUrl}
-                      </code>
+                    <div className="text-xs col-span-2">
+                      <span className="text-[rgb(var(--foreground-subtle))]">
+                        Endpoint
+                      </span>
+                      <div className="mt-1">
+                        <code className="text-xs bg-[rgb(var(--surface))] text-[rgb(var(--foreground-muted))] px-2 py-1 rounded font-mono">
+                          {container.httpHealthStatus.checkedUrl}
+                        </code>
+                      </div>
                     </div>
                   )}
                 </div>
@@ -1033,7 +1080,7 @@ function ContainerCard({
             {/* Container Logs */}
             {container.logs && (
               <div className="p-3 rounded-lg surface border border-[rgb(var(--border))]">
-                <div className="flex items-center justify-between mb-2">
+                <div className="flex items-center justify-between mb-3">
                   <div className="flex items-center gap-2">
                     <FileText className="h-4 w-4 text-[rgb(var(--primary))]" />
                     <span className="text-sm font-medium text-[rgb(var(--foreground))]">
@@ -1044,16 +1091,17 @@ function ContainerCard({
                     onClick={() =>
                       copyToClipboard(container.logs!, container.containerName)
                     }
-                    className="p-1.5 rounded hover:surface transition-colors"
+                    className="p-1.5 rounded-lg hover:surface transition-colors"
+                    title="Copy logs"
                   >
                     {copiedLog === container.containerName ? (
-                      <Check className="h-3 w-3 text-[rgb(var(--success))]" />
+                      <Check className="h-3.5 w-3.5 text-[rgb(var(--success))]" />
                     ) : (
-                      <Copy className="h-3 w-3 text-[rgb(var(--foreground-muted))]" />
+                      <Copy className="h-3.5 w-3.5 text-[rgb(var(--foreground-muted))]" />
                     )}
                   </button>
                 </div>
-                <pre className="text-xs text-[rgb(var(--foreground-muted))] bg-[rgb(var(--background))] p-3 rounded overflow-x-auto max-h-64 overflow-y-auto font-mono">
+                <pre className="text-[11px] leading-relaxed text-[rgb(var(--foreground-muted))] bg-[rgb(var(--background))] p-3 rounded overflow-x-auto max-h-64 overflow-y-auto font-mono border border-[rgb(var(--border))]">
                   {container.logs.split("\n").slice(-50).join("\n")}
                 </pre>
               </div>
@@ -1069,19 +1117,22 @@ function ContainerCard({
 function AlertItem({ alert }: { alert: MonitorAlert }) {
   const severityConfig = {
     info: {
-      icon: CheckCircle2,
+      icon: Info,
       color: "text-[rgb(var(--primary))]",
-      bg: "bg-[rgb(var(--primary))]/10",
+      bg: "bg-[rgb(var(--primary))]/5",
+      border: "border-[rgb(var(--primary))]/20",
     },
     warning: {
       icon: AlertTriangle,
       color: "text-[rgb(var(--warning))]",
-      bg: "bg-[rgb(var(--warning))]/10",
+      bg: "bg-[rgb(var(--warning))]/5",
+      border: "border-[rgb(var(--warning))]/20",
     },
     critical: {
       icon: XCircle,
       color: "text-[rgb(var(--error))]",
-      bg: "bg-[rgb(var(--error))]/10",
+      bg: "bg-[rgb(var(--error))]/5",
+      border: "border-[rgb(var(--error))]/20",
     },
   };
 
@@ -1089,16 +1140,14 @@ function AlertItem({ alert }: { alert: MonitorAlert }) {
   const Icon = config.icon;
 
   return (
-    <div
-      className={`p-3 rounded-lg ${config.bg} border border-[rgb(var(--border))]`}
-    >
-      <div className="flex items-start gap-2">
+    <div className={`p-3 rounded-lg ${config.bg} border ${config.border}`}>
+      <div className="flex items-start gap-3">
         <Icon className={`h-4 w-4 mt-0.5 ${config.color} flex-shrink-0`} />
-        <div className="flex-1">
-          <div className="text-sm text-[rgb(var(--foreground))]">
+        <div className="flex-1 min-w-0">
+          <div className="text-sm text-[rgb(var(--foreground))] leading-relaxed">
             {alert.message}
           </div>
-          <div className="text-xs text-[rgb(var(--foreground-muted))] mt-1">
+          <div className="text-xs text-[rgb(var(--foreground-subtle))] mt-1">
             {new Date(alert.timestamp).toLocaleString()}
           </div>
         </div>
@@ -1111,20 +1160,22 @@ function AlertItem({ alert }: { alert: MonitorAlert }) {
 function StatCard({
   label,
   value,
+  icon: Icon,
   color,
   bg,
   pulse = false,
 }: {
   label: string;
   value: number;
+  icon: any;
   color: string;
   bg: string;
   pulse?: boolean;
 }) {
   return (
-    <div className={`rounded-lg ${bg} border border-[rgb(var(--border))] p-3`}>
-      <div className="flex items-center justify-between mb-1">
-        <span className="text-xs text-[rgb(var(--foreground-muted))]">
+    <div className={`rounded-lg ${bg} border border-[rgb(var(--border))] p-4`}>
+      <div className="flex items-center justify-between mb-2">
+        <span className="text-xs font-medium text-[rgb(var(--foreground-muted))]">
           {label}
         </span>
         {pulse && value > 0 && (
@@ -1135,7 +1186,10 @@ function StatCard({
           />
         )}
       </div>
-      <div className={`text-2xl font-bold ${color}`}>{value}</div>
+      <div className="flex items-center gap-3">
+        <Icon className={`h-5 w-5 ${color}`} />
+        <div className={`text-2xl font-bold ${color}`}>{value}</div>
+      </div>
     </div>
   );
 }
