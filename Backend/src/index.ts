@@ -23,7 +23,10 @@ const httpServer = createServer(app);
 // Initialize Socket.IO
 export const io = new Server(httpServer, {
   cors: {
-    origin: process.env.FRONTEND_URL || "http://localhost:3000",
+    origin: [
+      process.env.FRONTEND_URL || "http://localhost:3000",
+      "https://agent-b9cndtpxg-aymaanpathans-projects.vercel.app",
+    ],
     methods: ["GET", "POST"],
     credentials: true,
   },
@@ -33,7 +36,10 @@ export const io = new Server(httpServer, {
 // Middleware - CORS first
 app.use(
   cors({
-    origin: process.env.FRONTEND_URL || "http://localhost:3000",
+    origin: [
+      process.env.FRONTEND_URL || "http://localhost:3000",
+      "https://agent-b9cndtpxg-aymaanpathans-projects.vercel.app",
+    ],
     credentials: true,
   }),
 );
