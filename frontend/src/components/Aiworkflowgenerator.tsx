@@ -65,7 +65,7 @@ export default function AIWorkflowGenerator({
       const { nodeConfigs } = await import("@/lib/nodeConfigs");
 
       const res = await fetch(
-        "http://localhost:5000/api/workflows/generate-workflow",
+        process.env.BACKEND_URL + "/api/workflows/generate-workflow",
         {
           method: "POST",
           headers: { "Content-Type": "application/json" },

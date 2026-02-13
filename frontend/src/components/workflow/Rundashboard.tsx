@@ -635,7 +635,7 @@ export default function RunDashboard({
   useEffect(() => {
     if (!runId) return;
 
-    const socket = io("http://localhost:5000", {
+    const socket = io(process.env.NEXT_PUBLIC_API_URL, {
       transports: ["websocket"],
     });
 
