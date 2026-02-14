@@ -773,7 +773,6 @@ export async function executeWorkflow(
     console.log("\n");
 
     const nodeStartTime = Date.now();
-    logger.nodeStarted(nodeId, nodeType, label, stepIndex, totalSteps);
 
     try {
       // ====================================
@@ -805,6 +804,7 @@ export async function executeWorkflow(
 
       logger.configResolved(nodeId, config, templateVars);
       logger.debug(nodeId, "Resolved configuration", config);
+    logger.nodeStarted(nodeId, nodeType, label, stepIndex, totalSteps, config);
 
       // ====================================
       // EXECUTE NODE
@@ -1186,7 +1186,7 @@ export async function executeWorkflow(
 
       const nodeDuration = Date.now() - nodeStartTime;
       console.log(`⏱️ [Workflow] Node completed in ${nodeDuration}ms`);
-      logger.nodeCompleted(nodeId, label, output, nodeDuration);
+      logger.nodeCompleted(nodeId, label, output, nodeDuration, nodeType);
 
       await Run.findByIdAndUpdate(runId, {
         $push: {
@@ -1261,8 +1261,7 @@ export async function executeWorkflow(
       const nodeDuration = Date.now() - nodeStartTime;
       console.log("❌ [Workflow] Node execution error:", error.message);
       logger.error(nodeId, error.message || "Unknown error");
-      logger.nodeFailed(nodeId, label, error.message, nodeDuration);
-
+      logger.nodeFailed(nodeId, label, error.message, nodeDuration, nodeType);
       context.errors.push({
         nodeId,
         message: error.message || "Unknown error",

@@ -461,7 +461,10 @@ function NodeExecutionCard({
                     <span className="font-mono">
                       {node?.startTime
                         ? new Date(node?.startTime).toLocaleTimeString()
-                        : "Not started"}
+                        : node?.status === "success" ||
+                            node?.status === "failed"
+                          ? "Completed" // Don't show "Not started" for completed nodes
+                          : "Pending"}
                     </span>
                     {node?.duration !== undefined && (
                       <>
@@ -649,29 +652,55 @@ export default function RunDashboard({
         newMap.set(data?.nodeId, {
           nodeId: data?.nodeId,
           nodeType: data?.nodeType,
-          label: data?.label,
+          label: data?.label || "Unknown Step", // ← Fallback for missing label
           stepIndex: data?.stepIndex,
           status: "running",
-          startTime: data?.timestamp,
-          config: data?.config,
+          startTime: data?.timestamp || new Date().toISOString(), // ← Fallback
+          config: data?.config, // ← Now properly received from backend
         });
         return newMap;
       });
     });
-
     socket.on("node_completed", (data) => {
+      console.log("📥 [Socket] node_completed:", data);
+
       setNodeExecutions((prev) => {
         const newMap = new Map(prev);
-        const existing = newMap.get(data?.nodeId) || ({} as NodeExecutionLog);
-        newMap.set(data?.nodeId, {
-          ...existing,
-          status: "success",
-          endTime: data?.timestamp,
-          duration: data?.duration,
-          output: data?.output,
-        });
+        const existing = newMap.get(data?.nodeId);
+
+        // ✅ FIX: Handle race condition - create node if it doesn't exist
+        if (!existing) {
+          console.warn(
+            `⚠️ [Socket] node_completed received before node_started for ${data?.nodeId}`,
+          );
+
+          // Create a new node entry with all available data
+          newMap.set(data?.nodeId, {
+            nodeId: data?.nodeId,
+            nodeType: data?.nodeType || "unknown",
+            label: data?.label || "Unknown Step",
+            stepIndex: 0, // Will be updated if node_started arrives later
+            status: "success",
+            startTime: data?.timestamp, // Use completion time as fallback
+            endTime: data?.timestamp,
+            duration: data?.duration,
+            output: data?.output,
+            config: undefined, // Not available in race condition case
+          });
+        } else {
+          // Normal case: update existing node
+          newMap.set(data?.nodeId, {
+            ...existing,
+            status: "success",
+            endTime: data?.timestamp,
+            duration: data?.duration,
+            output: data?.output,
+          });
+        }
+
         return newMap;
       });
+
       setStats((s) => ({ ...s, completedNodes: s.completedNodes + 1 }));
     });
 
