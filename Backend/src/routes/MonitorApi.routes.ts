@@ -1,5 +1,8 @@
 import express from "express";
-import { ContinuousMonitor } from "../engine/tools/monitor.tool";
+import {
+  ContinuousMonitor,
+  getAllContainers,
+} from "../engine/tools/monitor.tool";
 import { setupMonitorSocketBridge } from "../lib/monitorSocketBridge";
 import { executeMCPTool } from "../engine/tools/mcpTools.registry";
 import { requireDockerConnection } from "../middleware/docker.connection.middleware";
@@ -7,11 +10,34 @@ import { io } from "../index";
 
 const router = express.Router();
 
-// Active monitors storage (in-memory for now)
+// Active monitors storage
 const activeMonitors = new Map<string, ContinuousMonitor>();
 
-// Apply Docker connection requirement to all monitor routes
+// Apply Docker connection requirement
 router.use(requireDockerConnection);
+
+// ====================================
+// GET AVAILABLE CONTAINERS
+// ====================================
+router.get("/containers", async (req, res) => {
+  try {
+    console.log("📋 [Monitor API] Fetching available containers");
+
+    const containers = await getAllContainers();
+
+    res.json({
+      success: true,
+      containers,
+      count: containers.length,
+    });
+  } catch (error: any) {
+    console.error("❌ [Monitor API] Failed to fetch containers:", error);
+    res.status(500).json({
+      success: false,
+      error: error.message,
+    });
+  }
+});
 
 // ====================================
 // START MONITORING
@@ -39,6 +65,7 @@ router.post("/start", async (req, res) => {
       interval: config.interval || 30,
       alertOnChange: config.alertOnChange !== false,
       containerFilters: config.containerFilters,
+      selectedContainers: config.selectedContainers || [],
       autoFix: config.autoFix !== false,
     });
 
@@ -57,9 +84,47 @@ router.post("/start", async (req, res) => {
       success: true,
       sessionId,
       message: "Monitoring started successfully",
+      config: {
+        interval: config.interval || 30,
+        selectedContainers: config.selectedContainers || [],
+      },
     });
   } catch (error: any) {
     console.error("❌ [Monitor API] Start error:", error);
+    res.status(500).json({
+      success: false,
+      error: error.message,
+    });
+  }
+});
+
+// ====================================
+// UPDATE SELECTED CONTAINERS
+// ====================================
+router.post("/update-containers", async (req, res) => {
+  try {
+    const { sessionId, selectedContainers } = req.body;
+
+    console.log("🔄 [Monitor API] Update containers request");
+    console.log("📋 [Monitor API] Session ID:", sessionId);
+    console.log("📦 [Monitor API] Selected containers:", selectedContainers);
+
+    const monitor = activeMonitors.get(sessionId);
+    if (!monitor) {
+      return res.status(404).json({
+        success: false,
+        error: "Monitor not found",
+      });
+    }
+
+    monitor.updateSelectedContainers(selectedContainers);
+
+    res.json({
+      success: true,
+      selectedContainers,
+    });
+  } catch (error: any) {
+    console.error("❌ [Monitor API] Update containers error:", error);
     res.status(500).json({
       success: false,
       error: error.message,
@@ -155,7 +220,6 @@ router.post("/slack-notify", async (req, res) => {
       });
     }
 
-    // Use MCP tool to send Slack notification
     const result = await executeMCPTool("tool.slackNotify", {
       webhookUrl,
       message,
@@ -176,64 +240,6 @@ router.post("/slack-notify", async (req, res) => {
     });
   } catch (error: any) {
     console.error("❌ [Monitor API] Slack notify error:", error);
-    res.status(500).json({
-      success: false,
-      error: error.message,
-    });
-  }
-});
-
-// ====================================
-// PAUSE MONITORING
-// ====================================
-router.post("/pause", (req, res) => {
-  try {
-    const { sessionId } = req.body;
-
-    const monitor = activeMonitors.get(sessionId);
-    if (!monitor) {
-      return res.status(404).json({
-        success: false,
-        error: "Monitor not found",
-      });
-    }
-
-    monitor.stop();
-
-    res.json({
-      success: true,
-      message: "Monitoring paused",
-    });
-  } catch (error: any) {
-    res.status(500).json({
-      success: false,
-      error: error.message,
-    });
-  }
-});
-
-// ====================================
-// RESUME MONITORING
-// ====================================
-router.post("/resume", async (req, res) => {
-  try {
-    const { sessionId } = req.body;
-
-    const monitor = activeMonitors.get(sessionId);
-    if (!monitor) {
-      return res.status(404).json({
-        success: false,
-        error: "Monitor not found",
-      });
-    }
-
-    await monitor.start();
-
-    res.json({
-      success: true,
-      message: "Monitoring resumed",
-    });
-  } catch (error: any) {
     res.status(500).json({
       success: false,
       error: error.message,

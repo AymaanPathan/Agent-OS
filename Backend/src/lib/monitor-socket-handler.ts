@@ -1,5 +1,14 @@
 import { Server, Socket } from "socket.io";
 import { executeMCPTool } from "../engine/tools/mcpTools.registry";
+import { runDockerRestart, runDockerLogs } from "../engine/tools/docker.tool";
+import {
+  runDockerStop,
+  runDockerStart,
+  runDockerRemove,
+  runDockerPruneSystem,
+} from "../engine/tools/docker.extra.tool";
+import { runAILogAnalysis } from "../engine/tools/aiAnalyzer.tool";
+import { runSlackNotify } from "../engine/tools/slack.tool";
 
 // Store pending restart approvals - single response only
 const pendingRestartApprovals = new Map<
@@ -9,9 +18,29 @@ const pendingRestartApprovals = new Map<
     reject: (error: Error) => void;
     containerName: string;
     sessionId: string;
-    resolved: boolean; // Prevent multiple responses
+    resolved: boolean;
+    timestamp: number;
   }
 >();
+
+// Cleanup old approvals every minute
+setInterval(() => {
+  const now = Date.now();
+  const timeout = 60000; // 1 minute
+
+  for (const [approvalId, approval] of pendingRestartApprovals.entries()) {
+    if (now - approval.timestamp > timeout) {
+      if (!approval.resolved) {
+        console.log(
+          `🧹 [Monitor Socket] Cleaning up stale approval: ${approvalId}`,
+        );
+        approval.resolved = true;
+        approval.resolve(false);
+      }
+      pendingRestartApprovals.delete(approvalId);
+    }
+  }
+}, 60000);
 
 export function setupMonitorSocketHandlers(io: Server) {
   io.on("connection", (socket: Socket) => {
@@ -50,22 +79,86 @@ export function setupMonitorSocketHandlers(io: Server) {
             containerName: data.containerName,
           });
 
-          // Fetch logs first
-          const logsResult = await executeMCPTool("tool.dockerLogs", {
-            containerName: data.containerName,
-            tail: 200,
-          });
+          console.log(
+            `📦 [Monitor Socket] Fetching logs for: ${data.containerName}`,
+          );
 
-          if (!logsResult.success) {
-            throw new Error("Failed to fetch container logs");
+          // Try MCP first, fallback to direct
+          let logsResult;
+          try {
+            console.log("🔧 [Monitor Socket] Attempting MCP log fetch...");
+            logsResult = await executeMCPTool("tool.dockerLogs", {
+              containerName: data.containerName,
+              tail: 200,
+            });
+            console.log("✅ [Monitor Socket] MCP logs fetched successfully");
+          } catch (mcpError: any) {
+            console.warn(
+              `⚠️ [Monitor Socket] MCP logs failed: ${mcpError.message}`,
+            );
+            console.log("🔧 [Monitor Socket] Attempting direct log fetch...");
+
+            // Fallback to direct docker execution
+            logsResult = await runDockerLogs({
+              containerName: data.containerName,
+              tail: 200,
+              timestamps: false,
+            });
+            console.log("✅ [Monitor Socket] Direct logs fetched successfully");
           }
 
-          // Run AI analysis
-          const analysis = await executeMCPTool("agent.aiAnalyzer", {
-            logs: { [data.containerName]: logsResult.logs },
-            containerNames: [data.containerName],
-            context: `Analyzing container ${data.containerName} for issues`,
-          });
+          if (!logsResult.success) {
+            throw new Error(
+              `Failed to fetch container logs: ${logsResult.error || "Unknown error"}`,
+            );
+          }
+
+          console.log(
+            `🧠 [Monitor Socket] Running AI analysis on logs (${logsResult.logs?.length || 0} chars)...`,
+          );
+
+          // Run AI analysis (try MCP first, fallback to direct)
+          let analysis;
+          try {
+            console.log("🔧 [Monitor Socket] Attempting MCP AI analysis...");
+            analysis = await executeMCPTool("agent.aiAnalyzer", {
+              logs: { [data.containerName]: logsResult.logs },
+              containerNames: [data.containerName],
+              context: `Analyzing container ${data.containerName} for issues`,
+            });
+            console.log(
+              "✅ [Monitor Socket] MCP AI analysis completed successfully",
+            );
+          } catch (mcpError: any) {
+            console.warn(
+              `⚠️ [Monitor Socket] MCP AI analysis failed: ${mcpError.message}`,
+            );
+            console.log("🔧 [Monitor Socket] Attempting direct AI analysis...");
+
+            // Fallback to direct Groq API call
+            analysis = await runAILogAnalysis({
+              logs: { [data.containerName]: logsResult.logs },
+              containerNames: [data.containerName],
+              context: `Analyzing container ${data.containerName} for issues`,
+              provider: "groq",
+            });
+            console.log(
+              "✅ [Monitor Socket] Direct AI analysis completed successfully",
+            );
+          }
+
+          console.log(
+            `📊 [Monitor Socket] AI Analysis Results:`,
+            JSON.stringify(
+              {
+                summary: analysis.summary,
+                confidence: analysis.confidence,
+                errorCategory: analysis.errorCategory,
+              },
+              null,
+              2,
+            ),
+          );
 
           // Send analysis results back
           io.to(data.sessionId).emit("ai-analysis-complete", {
@@ -74,6 +167,8 @@ export function setupMonitorSocketHandlers(io: Server) {
           });
         } catch (error: any) {
           console.error("❌ [Monitor Socket] AI analysis error:", error);
+          console.error("Stack:", error.stack);
+
           io.to(data.sessionId).emit("ai-analysis-error", {
             containerName: data.containerName,
             error: error.message,
@@ -125,22 +220,74 @@ export function setupMonitorSocketHandlers(io: Server) {
               containerName: data.containerName,
             });
 
-            // Execute restart
-            const result = await executeMCPTool("tool.dockerRestart", {
-              containerName: data.containerName,
-              timeout: 30,
-            });
+            // Execute restart with comprehensive fallback mechanism
+            let result;
+            let method = "unknown";
+
+            try {
+              // Try MCP first
+              console.log(
+                `🔧 [Monitor Socket] Attempting restart via MCP for ${data.containerName}...`,
+              );
+              result = await executeMCPTool("tool.dockerRestart", {
+                containerName: data.containerName,
+                timeout: 30,
+              });
+              method = "MCP";
+              console.log(
+                `✅ [Monitor Socket] MCP restart completed:`,
+                JSON.stringify(result, null, 2),
+              );
+            } catch (mcpError: any) {
+              console.warn(
+                `⚠️ [Monitor Socket] MCP restart failed: ${mcpError.message}`,
+              );
+              console.log(
+                `🔧 [Monitor Socket] Attempting direct docker restart for ${data.containerName}...`,
+              );
+
+              // Fallback to direct docker execution
+              try {
+                result = await runDockerRestart({
+                  containerName: data.containerName,
+                  timeout: 30,
+                });
+                method = "Direct Docker";
+                console.log(
+                  `✅ [Monitor Socket] Direct restart completed:`,
+                  JSON.stringify(result, null, 2),
+                );
+              } catch (directError: any) {
+                console.error(
+                  `❌ [Monitor Socket] Direct restart also failed: ${directError.message}`,
+                );
+                console.error("Stack:", directError.stack);
+
+                throw new Error(
+                  `Both MCP and direct restart failed. MCP Error: ${mcpError.message}, Direct Error: ${directError.message}`,
+                );
+              }
+            }
 
             console.log(
-              `📊 [Monitor Socket] Restart result:`,
-              JSON.stringify(result, null, 2),
+              `📊 [Monitor Socket] Final restart result (via ${method}):`,
+              JSON.stringify(
+                {
+                  success: result.success,
+                  containerName: result.containerName || data.containerName,
+                  method,
+                },
+                null,
+                2,
+              ),
             );
 
             io.to(data.sessionId).emit("restart-completed", {
               containerName: data.containerName,
               success: result.success,
+              method,
               message: result.success
-                ? `✅ Container ${data.containerName} restarted successfully`
+                ? `✅ Container ${data.containerName} restarted successfully (via ${method})`
                 : `❌ Failed to restart ${data.containerName}: ${result.error || "Unknown error"}`,
             });
           } else {
@@ -155,6 +302,8 @@ export function setupMonitorSocketHandlers(io: Server) {
           }
         } catch (error: any) {
           console.error("❌ [Monitor Socket] Restart flow error:", error);
+          console.error("Stack:", error.stack);
+
           io.to(data.sessionId).emit("restart-error", {
             containerName: data.containerName,
             message: `Error during restart: ${error.message}`,
@@ -188,6 +337,102 @@ export function setupMonitorSocketHandlers(io: Server) {
       },
     );
 
+    // Handle container start
+    socket.on(
+      "start-container",
+      async (data: { sessionId: string; containerName: string }) => {
+        console.log("▶️ [Monitor Socket] Start container requested:", data);
+
+        try {
+          io.to(data.sessionId).emit("container-operation-started", {
+            containerName: data.containerName,
+            operation: "start",
+          });
+
+          let result;
+          let method = "unknown";
+
+          try {
+            result = await executeMCPTool("tool.dockerStart", {
+              containerName: data.containerName,
+            });
+            method = "MCP";
+          } catch (mcpError: any) {
+            console.warn(`⚠️ MCP start failed: ${mcpError.message}`);
+            result = await runDockerStart({
+              containerName: data.containerName,
+            });
+            method = "Direct Docker";
+          }
+
+          io.to(data.sessionId).emit("container-operation-completed", {
+            containerName: data.containerName,
+            operation: "start",
+            success: result.success,
+            method,
+            message: result.success
+              ? `✅ Container ${data.containerName} started`
+              : `❌ Failed to start: ${result.error}`,
+          });
+        } catch (error: any) {
+          console.error("❌ [Monitor Socket] Start error:", error);
+          io.to(data.sessionId).emit("container-operation-error", {
+            containerName: data.containerName,
+            operation: "start",
+            error: error.message,
+          });
+        }
+      },
+    );
+
+    // Handle container stop
+    socket.on(
+      "stop-container",
+      async (data: { sessionId: string; containerName: string }) => {
+        console.log("⏸️ [Monitor Socket] Stop container requested:", data);
+
+        try {
+          io.to(data.sessionId).emit("container-operation-started", {
+            containerName: data.containerName,
+            operation: "stop",
+          });
+
+          let result;
+          let method = "unknown";
+
+          try {
+            result = await executeMCPTool("tool.dockerStop", {
+              containerName: data.containerName,
+            });
+            method = "MCP";
+          } catch (mcpError: any) {
+            console.warn(`⚠️ MCP stop failed: ${mcpError.message}`);
+            result = await runDockerStop({
+              containerName: data.containerName,
+            });
+            method = "Direct Docker";
+          }
+
+          io.to(data.sessionId).emit("container-operation-completed", {
+            containerName: data.containerName,
+            operation: "stop",
+            success: result.success,
+            method,
+            message: result.success
+              ? `✅ Container ${data.containerName} stopped`
+              : `❌ Failed to stop: ${result.error}`,
+          });
+        } catch (error: any) {
+          console.error("❌ [Monitor Socket] Stop error:", error);
+          io.to(data.sessionId).emit("container-operation-error", {
+            containerName: data.containerName,
+            operation: "stop",
+            error: error.message,
+          });
+        }
+      },
+    );
+
     // Handle Slack notification with channel
     socket.on(
       "send-slack-notification",
@@ -198,26 +443,72 @@ export function setupMonitorSocketHandlers(io: Server) {
         message: string;
         severity?: string;
         metadata?: Record<string, any>;
+        includeLogSnippet?: boolean;
       }) => {
         console.log("📢 [Monitor Socket] Slack notification requested:", data);
 
         try {
           const webhookUrl = process.env.SLACK_WEBHOOK_URL;
           if (!webhookUrl) {
-            throw new Error("Slack webhook URL not configured");
+            throw new Error(
+              "Slack webhook URL not configured. Set SLACK_WEBHOOK_URL in environment variables.",
+            );
           }
 
-          const result = await executeMCPTool("tool.slackNotify", {
-            webhookUrl,
-            message: data.message,
-            channel: data.channel,
-            severity: data.severity || "info",
-            metadata: {
-              Container: data.containerName,
-              Timestamp: new Date().toLocaleString(),
-              ...data.metadata,
-            },
-          });
+          // Optionally fetch logs if requested
+          let logSnippet = undefined;
+          if (data.includeLogSnippet) {
+            try {
+              const logsResult = await runDockerLogs({
+                containerName: data.containerName,
+                tail: 50,
+                timestamps: false,
+              });
+
+              if (logsResult.success) {
+                logSnippet = logsResult.logs;
+              }
+            } catch (err) {
+              console.warn(
+                "⚠️ [Monitor Socket] Could not fetch logs for Slack:",
+                err,
+              );
+            }
+          }
+
+          let result;
+          try {
+            result = await executeMCPTool("tool.slackNotify", {
+              webhookUrl,
+              message: data.message,
+              channel: data.channel,
+              severity: data.severity || "info",
+              includeLogSnippet: !!logSnippet,
+              logSnippet: logSnippet,
+              metadata: {
+                Container: data.containerName,
+                Timestamp: new Date().toLocaleString(),
+                ...data.metadata,
+              },
+            });
+          } catch (mcpError: any) {
+            console.warn(
+              `⚠️ [Monitor Socket] MCP Slack notify failed: ${mcpError.message}`,
+            );
+            result = await runSlackNotify({
+              webhookUrl,
+              message: data.message,
+              channel: data.channel,
+              severity: (data.severity as any) || "info",
+              includeLogSnippet: !!logSnippet,
+              logSnippet: logSnippet,
+              metadata: {
+                Container: data.containerName,
+                Timestamp: new Date().toLocaleString(),
+                ...data.metadata,
+              },
+            });
+          }
 
           io.to(data.sessionId).emit("slack-notification-sent", {
             success: result.success,
@@ -231,6 +522,18 @@ export function setupMonitorSocketHandlers(io: Server) {
             error: error.message,
           });
         }
+      },
+    );
+
+    // Handle manual refresh request
+    socket.on(
+      "refresh-container-metrics",
+      async (data: { sessionId: string }) => {
+        console.log("🔄 [Monitor Socket] Manual refresh requested:", data);
+
+        io.to(data.sessionId).emit("refresh-started", {
+          timestamp: new Date().toISOString(),
+        });
       },
     );
 
@@ -273,7 +576,8 @@ function waitForRestartApproval(
       reject,
       containerName,
       sessionId,
-      resolved: false, // Track if already resolved
+      resolved: false,
+      timestamp: Date.now(),
     });
   });
 }

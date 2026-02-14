@@ -403,20 +403,54 @@ export async function runDockerRestart(config: {
   containerName: string;
   timeout?: number;
 }) {
+  console.log("🔄 [DockerRestart] Starting restart for:", config.containerName);
+
   try {
     const timeout = config.timeout || 10;
     const cmd = `restart -t ${timeout} ${config.containerName}`;
 
-    await execDockerCommand(cmd);
+    // Execute restart - catch the error but check if it actually worked
+    try {
+      await execDockerCommand(cmd);
+    } catch (execError: any) {
+      // Docker restart might throw error but still succeed
+      // We'll verify the actual status below
+      console.warn(
+        "⚠️ [DockerRestart] Command threw error (checking status):",
+        execError.message,
+      );
+    }
 
-    return {
-      success: true,
-      action: "restart",
-      containerName: config.containerName,
-      timestamp: new Date().toISOString(),
-    };
+    // Wait a moment for container to stabilize
+    await new Promise((resolve) => setTimeout(resolve, 1500));
+
+    // Verify container is actually running
+    const { stdout: statusCheck } = await execDockerCommand(
+      `inspect ${config.containerName} --format '{{.State.Status}}'`,
+    );
+
+    const isRunning = statusCheck.trim() === "running";
+
+    if (isRunning) {
+      console.log("✅ [DockerRestart] Container successfully restarted");
+      return {
+        success: true,
+        action: "restart",
+        containerName: config.containerName,
+        timestamp: new Date().toISOString(),
+      };
+    } else {
+      console.error("❌ [DockerRestart] Container not running after restart");
+      return {
+        success: false,
+        action: "restart",
+        containerName: config.containerName,
+        error: `Container status: ${statusCheck.trim()}`,
+        timestamp: new Date().toISOString(),
+      };
+    }
   } catch (err: any) {
-    console.error(`❌ [Docker Restart] Error:`, err.message);
+    console.error(`❌ [DockerRestart] Fatal error:`, err.message);
     return {
       success: false,
       action: "restart",
