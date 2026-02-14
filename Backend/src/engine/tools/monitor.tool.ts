@@ -46,6 +46,7 @@ export type ContainerMetric = {
   uptime: string;
   severity: "HEALTHY" | "WARNING" | "CRITICAL";
   timestamp: string;
+  status: string;
   httpHealthStatus?: {
     checked: boolean;
     healthy: boolean;
@@ -191,7 +192,7 @@ async function getContainerStats(containerName: string): Promise<{
 }
 
 /**
- * Get container restart count and uptime
+ * Get container restart count and uptime - FIXED VERSION
  */
 async function getContainerInfo(containerName: string): Promise<{
   restartCount: number;
@@ -199,38 +200,59 @@ async function getContainerInfo(containerName: string): Promise<{
   status: string;
 }> {
   try {
-    const { stdout } = await execDockerCommand(
-      `inspect ${containerName} --format '{{.RestartCount}}|{{.State.Status}}|{{.State.StartedAt}}'`,
-    );
+    // Use docker inspect with JSON output instead of --format
+    const { stdout } = await execDockerCommand(`inspect ${containerName}`);
 
-    const [restartCount, status, startedAt] = stdout.trim().split("|");
+    const containers = JSON.parse(stdout);
+    if (!containers || containers.length === 0) {
+      return {
+        restartCount: 0,
+        uptime: "0m",
+        status: "not found",
+      };
+    }
+
+    const container = containers[0];
+    const restartCount = container.RestartCount || 0;
+    const status = container.State?.Status || "unknown";
+    const startedAt = container.State?.StartedAt;
 
     // Calculate uptime
-    const startTime = new Date(startedAt).getTime();
-    const now = Date.now();
-    const uptimeMs = now - startTime;
+    let uptime = "0m";
+    if (startedAt && status === "running") {
+      const startTime = new Date(startedAt).getTime();
+      const now = Date.now();
+      const uptimeMs = now - startTime;
 
-    const days = Math.floor(uptimeMs / (1000 * 60 * 60 * 24));
-    const hours = Math.floor(
-      (uptimeMs % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60),
-    );
-    const minutes = Math.floor((uptimeMs % (1000 * 60 * 60)) / (1000 * 60));
+      const days = Math.floor(uptimeMs / (1000 * 60 * 60 * 24));
+      const hours = Math.floor(
+        (uptimeMs % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60),
+      );
+      const minutes = Math.floor((uptimeMs % (1000 * 60 * 60)) / (1000 * 60));
 
-    let uptime = "";
-    if (days > 0) uptime += `${days}d `;
-    if (hours > 0) uptime += `${hours}h `;
-    uptime += `${minutes}m`;
+      if (days > 0) {
+        uptime = `${days}d ${hours}h`;
+      } else if (hours > 0) {
+        uptime = `${hours}h ${minutes}m`;
+      } else {
+        uptime = `${minutes}m`;
+      }
+    }
 
     return {
-      restartCount: parseInt(restartCount) || 0,
+      restartCount,
       uptime: uptime.trim(),
       status,
     };
-  } catch (err) {
+  } catch (err: any) {
+    console.error(
+      `❌ [Monitor] Failed to get container info for ${containerName}:`,
+      err.message,
+    );
     return {
       restartCount: 0,
       uptime: "0m",
-      status: "unknown",
+      status: "error",
     };
   }
 }
@@ -431,15 +453,19 @@ export class ContinuousMonitor extends EventEmitter {
       console.log(`\n🔍 [Monitor] Processing: ${containerName}`);
 
       // Get comprehensive container data
-      const [ports, stats, info, httpHealth, logs] = await Promise.all([
+      const [ports, stats, info, logs] = await Promise.all([
         getContainerPorts(containerName),
         getContainerStats(containerName),
         getContainerInfo(containerName),
-        getContainerPorts(containerName).then((ports) =>
-          checkHTTPHealth(containerName, ports),
-        ),
         fetchContainerLogs(containerName, 200),
       ]);
+
+      // Check HTTP health after getting ports
+      const httpHealth = await checkHTTPHealth(containerName, ports);
+
+      console.log(
+        `📋 [Monitor] ${containerName} status: ${info.status}, restart count: ${info.restartCount}, uptime: ${info.uptime}`,
+      );
 
       // Determine health status
       const dockerHealthy = info.status === "running";
@@ -501,6 +527,7 @@ export class ContinuousMonitor extends EventEmitter {
         ...stats,
         restartCount: info.restartCount,
         uptime: info.uptime,
+        status: info.status,
         severity,
         timestamp: new Date().toISOString(),
         httpHealthStatus: httpHealth.checked ? httpHealth : undefined,
