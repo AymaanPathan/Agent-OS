@@ -1,5 +1,6 @@
 import express from "express";
 import { executeMCPTool } from "../engine/tools/mcpTools.registry";
+import { requireDockerConnection } from "../middleware/docker.connection.middleware";
 
 const router = express.Router();
 
@@ -67,7 +68,7 @@ const TOOL_DEFINITIONS = {
   },
 };
 
-// Get all available tools
+// Get all available tools (no Docker required for listing)
 router.get("/", async (req, res) => {
   try {
     const tools = Object.entries(TOOL_DEFINITIONS).map(
@@ -94,8 +95,8 @@ router.get("/", async (req, res) => {
   }
 });
 
-// Test a specific tool
-router.post("/test/:nodeType", async (req, res) => {
+// Test a specific tool (requires Docker connection for Docker-related tools)
+router.post("/test/:nodeType", requireDockerConnection, async (req, res) => {
   try {
     const { nodeType } = req.params;
     const config = req.body;

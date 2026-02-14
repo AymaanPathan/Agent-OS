@@ -2,12 +2,16 @@ import express from "express";
 import { ContinuousMonitor } from "../engine/tools/monitor.tool";
 import { setupMonitorSocketBridge } from "../lib/monitorSocketBridge";
 import { executeMCPTool } from "../engine/tools/mcpTools.registry";
+import { requireDockerConnection } from "../middleware/docker.connection.middleware";
 import { io } from "../index";
 
 const router = express.Router();
 
 // Active monitors storage (in-memory for now)
 const activeMonitors = new Map<string, ContinuousMonitor>();
+
+// Apply Docker connection requirement to all monitor routes
+router.use(requireDockerConnection);
 
 // ====================================
 // START MONITORING

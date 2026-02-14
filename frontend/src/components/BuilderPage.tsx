@@ -50,10 +50,9 @@ import { useDispatch } from "react-redux";
 import { startRun } from "@/store/slices/runsSlice";
 import RunDashboard from "@/components/workflow/Rundashboard";
 import AIWorkflowGenerator from "@/components/Aiworkflowgenerator";
-import React from "react";
 import StepConfigPanel from "@/components/StepConfigPanel";
 import { useTheme } from "@/components/ThemeProvider";
-import { DockerConnectionDialog } from "@/components/DockerConnectionDialog";
+
 
 const getWorkspaceId = () => {
   if (typeof window === "undefined") return "";
@@ -570,11 +569,14 @@ export default function BuilderPage() {
                 <Settings className="mr-1.5 h-3.5 w-3.5" />
                 Docker Settings
               </Button>
+{/* 
+              <DockerConnectionModal
+                isOpen={showDockerDialog}
+                onClose={() => setShowDockerDialog(false)}
+                onConnected={
 
-              <DockerConnectionDialog
-                open={showDockerDialog}
-                onOpenChange={setShowDockerDialog}
-              />
+                }
+              /> */}
 
               <Button
                 size="sm"

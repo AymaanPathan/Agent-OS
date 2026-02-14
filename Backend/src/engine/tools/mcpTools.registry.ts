@@ -44,10 +44,7 @@ export function mapNodeTypeToToolName(nodeType: string): string {
  * Execute an MCP tool by node type
  * This is the main function used by the workflow executor
  */
-export async function executeMCPTool(
-  nodeType: string,
-  config: any,
-): Promise<any> {
+export async function executeMCPTool(nodeType: any, config: any): Promise<any> {
   const toolName = toolNameMap[nodeType];
   if (!toolName) {
     throw new Error(`Unknown node type: ${nodeType}`);
