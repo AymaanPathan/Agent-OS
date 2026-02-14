@@ -398,7 +398,6 @@ export async function runDockerLogs(config: {
     };
   }
 }
-
 export async function runDockerRestart(config: {
   containerName: string;
   timeout?: number;
@@ -413,8 +412,6 @@ export async function runDockerRestart(config: {
     try {
       await execDockerCommand(cmd);
     } catch (execError: any) {
-      // Docker restart might throw error but still succeed
-      // We'll verify the actual status below
       console.warn(
         "⚠️ [DockerRestart] Command threw error (checking status):",
         execError.message,
@@ -424,12 +421,17 @@ export async function runDockerRestart(config: {
     // Wait a moment for container to stabilize
     await new Promise((resolve) => setTimeout(resolve, 1500));
 
-    // Verify container is actually running
+    // Verify container is actually running - use JSON format to avoid quote issues
     const { stdout: statusCheck } = await execDockerCommand(
-      `inspect ${config.containerName} --format '{{.State.Status}}'`,
+      `inspect ${config.containerName} --format "{{json .State.Status}}"`,
     );
 
-    const isRunning = statusCheck.trim() === "running";
+    const status = JSON.parse(statusCheck.trim());
+    const isRunning = status === "running";
+
+    console.log(
+      `📊 [DockerRestart] Container status: ${status} (running: ${isRunning})`,
+    );
 
     if (isRunning) {
       console.log("✅ [DockerRestart] Container successfully restarted");
@@ -445,7 +447,7 @@ export async function runDockerRestart(config: {
         success: false,
         action: "restart",
         containerName: config.containerName,
-        error: `Container status: ${statusCheck.trim()}`,
+        error: `Container status: ${status}`,
         timestamp: new Date().toISOString(),
       };
     }
