@@ -192,24 +192,18 @@ const nodeTypeConfig: Record<
     badge: "bg-blue-500/20 text-blue-300",
     label: "Continuous Monitor",
   },
-  default: {
-    icon: Box,
-    color: "text-[rgb(var(--foreground-muted))]",
-    bg: "surface",
-    border: "border-[rgb(var(--border))]",
-    badge: "surface text-[rgb(var(--foreground-muted))]",
-    label: "Unknown",
-  },
 };
 
 // ====================================
 // 🗂️ OUTPUT VIEWER
 // ====================================
 
-function OutputViewer({ data }: { data: any }) {
+function OutputViewer({ data }: { data?: any }) {
   const [copied, setCopied] = useState(false);
 
   const handleCopy = () => {
+    if (data === undefined) return;
+
     navigator.clipboard.writeText(JSON.stringify(data, null, 2));
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
@@ -325,7 +319,11 @@ function OutputViewer({ data }: { data: any }) {
         </button>
       </div>
       <div className="p-3 max-h-64 overflow-auto text-sm font-mono">
-        {renderValue(data)}
+        {data === undefined ? (
+          <span className="text-[rgb(var(--foreground-subtle))]">No data</span>
+        ) : (
+          renderValue(data)
+        )}{" "}
       </div>
     </div>
   );
@@ -339,26 +337,25 @@ function NodeExecutionCard({
   node = {} as NodeExecutionLog,
   index,
 }: {
-  node: NodeExecutionLog;
+  node?: NodeExecutionLog;
   index: number;
 }) {
   const [expanded, setExpanded] = useState(true);
 
   // Get config with proper fallback
-  const config = nodeTypeConfig[node?.nodeType] ||
-    nodeTypeConfig.default || {
-      icon: Box,
-      color: "text-[rgb(var(--foreground-muted))]",
-      bg: "surface",
-      border: "border-[rgb(var(--border))]",
-      badge: "surface text-[rgb(var(--foreground-muted))]",
-      label: "Unknown",
-    };
+  const config = nodeTypeConfig[node?.nodeType] || nodeTypeConfig?.default;
 
   const Icon = config?.icon || Box;
 
-  const hasOutput = node?.output && Object.keys(node?.output).length > 0;
-  const hasConfig = node?.config && Object.keys(node?.config)?.length > 0;
+  const hasOutput =
+    node?.output && typeof node.output === "object"
+      ? Object.keys(node.output).length > 0
+      : false;
+
+  const hasConfig =
+    node?.config && typeof node.config === "object"
+      ? Object.keys(node.config).length > 0
+      : false;
   const hasDetails = hasOutput || hasConfig || node?.error;
 
   const statusConfig: Record<
@@ -759,9 +756,8 @@ export default function RunDashboard({
       : 0;
 
   const sortedNodes = Array.from(nodeExecutions.values()).sort(
-    (a, b) => a.stepIndex - b.stepIndex,
+    (a, b) => (a?.stepIndex ?? 0) - (b?.stepIndex ?? 0),
   );
-
   return (
     <div className="h-full w-full flex flex-col bg-[rgb(var(--background))]">
       {/* HEADER */}
