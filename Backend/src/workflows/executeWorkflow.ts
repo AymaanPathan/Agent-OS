@@ -13,6 +13,7 @@ import {
 import { callA2AAgent } from "../engine/tools/a2a.client";
 import { io } from "../lib/socket";
 import { setupMonitorSocketBridge } from "../lib/monitorSocketBridge";
+import { runAILogAnalysis } from "../engine/tools/aiAnalyzer.tool";
 
 // ====================================
 // 🎯 ENHANCED RUN CONTEXT
@@ -804,7 +805,14 @@ export async function executeWorkflow(
 
       logger.configResolved(nodeId, config, templateVars);
       logger.debug(nodeId, "Resolved configuration", config);
-    logger.nodeStarted(nodeId, nodeType, label, stepIndex, totalSteps, config);
+      logger.nodeStarted(
+        nodeId,
+        nodeType,
+        label,
+        stepIndex,
+        totalSteps,
+        config,
+      );
 
       // ====================================
       // EXECUTE NODE
@@ -831,8 +839,7 @@ export async function executeWorkflow(
         case "tool.dockerRollback":
         case "tool.dockerListAll":
         case "tool.dockerBulkRestart":
-        case "tool.dockerBulkLogs":
-        case "agent.aiAnalyzer": {
+        case "tool.dockerBulkLogs": {
           const toolName = getToolName(nodeType);
 
           console.log("🔧 [Tool] Executing:", toolName);
@@ -997,6 +1004,43 @@ export async function executeWorkflow(
             output = { success: false, error: err.message };
             console.log("❌ [Tool] Error:", err.message);
             logger.toolFailed(toolName, err.message);
+          }
+          break;
+        }
+        case "agent.aiAnalyzer": {
+          console.log("🧠 [AI Analyzer] Starting log analysis");
+          logger.toolStarted("AI Log Analyzer", nodeId, config);
+
+          try {
+            // Import the AI analyzer function at the top of the file:
+            // import { runAILogAnalysis } from "../engine/tools/aiAnalyzer.tool";
+
+
+            output = await runAILogAnalysis({
+              logs: config.logs,
+              containerNames: config.containerNames,
+              context: config.context,
+              model: config.model,
+              provider: config.provider,
+            });
+
+            success = output.success;
+            message = output.success
+              ? `✅ AI analysis completed with ${output.confidence} confidence`
+              : `❌ AI analysis failed: ${output.error}`;
+
+            console.log("📊 [AI Analyzer] Result:", output);
+            logger.toolCompleted(
+              "AI Log Analyzer",
+              output,
+              Date.now() - nodeStartTime,
+            );
+          } catch (err: any) {
+            success = false;
+            message = `❌ AI Analyzer failed: ${err.message}`;
+            output = { success: false, error: err.message };
+            console.log("❌ [AI Analyzer] Error:", err.message);
+            logger.toolFailed("AI Log Analyzer", err.message);
           }
           break;
         }

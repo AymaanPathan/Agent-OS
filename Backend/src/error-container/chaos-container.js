@@ -143,7 +143,6 @@ rl.question("Select: ", (ans) => {
   } else {
     chaosMode = "idle";
     dualLog("⚪ No chaos mode selected - running in IDLE mode");
-    dualLog("📊 Container will serve health checks but generate no errors");
   }
 
   if (chaosMode !== "idle") {
@@ -159,7 +158,6 @@ rl.question("Select: ", (ans) => {
 // ============================================================================
 
 function cpuErrors() {
-  dualLog("🔥 CPU ERROR MODE ACTIVATED - CONTINUOUS");
   dualLog("   → Generating CPU stress errors every 3-7 seconds");
 
   const generateCpuError = () => {
@@ -498,7 +496,6 @@ process.on("SIGINT", () => {
 
 // Ignore SIGTERM so container doesn't exit on docker stop
 process.on("SIGTERM", () => {
-  forceLog("⚠️  SIGTERM received but IGNORED - chaos continues!", true);
   dualLog(
     `📊 Current stats: Mode=${chaosMode}, Errors=${errorCount}, Runtime=${Math.round(process.uptime())}s`,
   );
