@@ -90,7 +90,7 @@ const SAFETY_OPTIONS = [
 
 export default function AgentSwarmPage() {
   const [goal, setGoal] = useState(
-    "Container error-test is not working. Investigate and fix the issue safely.",
+    "“Scan and analyze all containers, report any failures or misconfigurations, diagnose the root cause, and perform safe corrective actions without causing service disruption.",
   );
   const [agents, setAgents] = useState<SubAgent[]>(AVAILABLE_AGENTS);
   const [safetyOptions, setSafetyOptions] = useState(SAFETY_OPTIONS);
