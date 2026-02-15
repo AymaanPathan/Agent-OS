@@ -391,7 +391,7 @@ User Request → DevOps Orchestrator
 
 ```bash
 # Clone repository
-git clone https://github.com/AymaanPathanf/agentos.git
+git clone https://github.com/AymaanPathan/Agent-OS.git
 cd agentos
 
 # Backend setup
