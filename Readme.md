@@ -1141,7 +1141,7 @@ socket.on("agent-complete", (result) => {
 #### 1. Clone Repository
 
 ```bash
-git clone https://github.com/yourusername/agentos.git
+git clone https://github.com/AymaanPathan/Agent-OS
 cd agentos
 ```
 
