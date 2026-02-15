@@ -391,7 +391,7 @@ User Request → DevOps Orchestrator
 
 ```bash
 # Clone repository
-git clone https://github.com/yourusername/agentos.git
+git clone https://github.com/AymaanPathanf/agentos.git
 cd agentos
 
 # Backend setup
@@ -570,7 +570,7 @@ POST   /api/agent-swarm/reject      # Reject action
 
 ## 🎥 Demo Video
 
-[Demo Link Here]
+https://drive.google.com/file/d/19eXEODFNNQh4nKvw4vETPpTZbJsdzMw5/view
 
 **Test Scenarios:**
 
