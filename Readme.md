@@ -524,33 +524,6 @@ Check Archestra violation logs regularly to see blocked attempts.
 
 ---
 
-## Common Questions
-
-**Q: Will this break my workflows?**  
-A: Only unsafe ones. You'll see clear error messages explaining why and suggesting alternatives.
-
-**Q: Can I disable policies for testing?**  
-A: Yes. Disable policy enforcement in development environments, enable in production.
-
-**Q: How do I know what policies to create?**  
-A: Start with blocking dangerous tools (docker_exec) and protecting data sources (docker_logs). Expand based on your needs.
-
-**Q: Can attackers bypass policies?**  
-A: No. Archestra enforces at platform level before tool execution. No bypass possible, even with clever prompts.
-
-**Q: Does this slow down workflows?**  
-A: No. Policy checks add less than 1ms overhead per tool call.
-
-**Q: What if I need to send logs externally?**  
-A: Create a sanitized summary instead, or use approved notification templates that don't contain sensitive data.
-
-**Q: How often should I review policies?**  
-A: Review weekly initially, then monthly once stable. Check violation logs daily.
-
-**Q: Can I customize policies per team?**  
-A: Yes. Archestra supports team-level, user-level, and organization-level policies.
-
----
 
 ## Summary
 
@@ -592,13 +565,3 @@ A: Yes. Archestra supports team-level, user-level, and organization-level polici
 - Terraform infrastructure as code support
 - Team-level policy customization
 
-### Next Steps
-
-1. Connect AgentOS to Archestra
-2. Enable policy enforcement
-3. Create recommended policies
-4. Test with risky workflow
-5. Monitor violation logs
-6. Build workflows confidently
-
-**Secure automation with Archestra Tool Policies.**
