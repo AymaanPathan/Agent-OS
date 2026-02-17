@@ -1,576 +1,405 @@
-# AgentOS Security with Archestra Tool Policies
-## Secure AI-Powered Container Management for Everyone
+# 🤖 AgentOS — AI-Powered DevOps Automation
+
+> Build, run, and monitor intelligent operational workflows using AI agent orchestration and MCP tools — with enterprise-grade security powered by **Archestra**.
+
+![License](https://img.shields.io/badge/license-MIT-green?style=flat-square)
+![Docker](https://img.shields.io/badge/built_with-Docker-blue?style=flat-square)
+![MCP](https://img.shields.io/badge/tools-MCP-purple?style=flat-square)
+![Archestra](https://img.shields.io/badge/security-Archestra-orange?style=flat-square)
+
+<br />
+
+<img width="1603" alt="hero" src="https://github.com/user-attachments/assets/9a68c05a-ba8e-4982-b91f-66b458095d40" />
 
 ---
-<img width="1603" height="803" alt="hero" src="https://github.com/user-attachments/assets/9a68c05a-ba8e-4982-b91f-66b458095d40" />
-<img width="1918" height="857" alt="workflow" src="https://github.com/user-attachments/assets/7b0fec37-3843-4019-b0be-815f22a703ff" />
-<img width="1918" height="862" alt="Agent-OS-monitor" src="https://github.com/user-attachments/assets/e01acb57-6763-427c-b26e-637b3f94c2ba" />
-<img width="1918" height="868" alt="Monitor-2" src="https://github.com/user-attachments/assets/8cab548d-2f33-4fb7-a955-9f156c36ae7b" />
 
-<img width="1918" height="865" alt="Agent-3" src="https://github.com/user-attachments/assets/748d4c6d-ce51-485c-9984-31f2def52601" />
-<img width="1918" height="865" alt="Agent-2" src="https://github.com/user-attachments/assets/302cbd7a-b5d8-4289-b717-2090e5d4e329" />
-<img width="1918" height="853" alt="Agent-1" src="https://github.com/user-attachments/assets/a461546b-956e-4ee2-b964-075ca77f8981" />
+## What is AgentOS?
 
+AgentOS is a DevOps-first platform where anyone — engineers, product managers, support teams — can **build, run, and monitor AI-powered operational workflows** without writing infrastructure code.
 
-## Who Can Use AgentOS?
+No DevOps experience needed. Drag and drop tools, chat with AI in plain English, or let autonomous agents investigate and fix incidents automatically.
 
-**No DevOps experience needed.** AgentOS makes container management simple for:
+---
 
-- **Product Managers**: Build workflows to restart services, send alerts, monitor uptime
-- **Support Teams**: Create automated incident response, get AI-powered troubleshooting
-- **Developers**: Manage test environments, analyze logs, deploy containers
-- **Operations**: Monitor production, implement self-healing, manage incidents
-- **Anyone**: Use drag-and-drop workflows or just chat with AI in plain English
-
-**Three Simple Modes:**
+## Three Modes
 
 | Mode | What You Do | Example |
 |------|-------------|---------|
-| **Runbook Mode** | Drag-and-drop workflow builder (like Zapier for containers) | "If container unhealthy → restart → send alert" |
-| **Monitor Mode** | Real-time dashboard with one-click actions | Click "Restart Container" or "AI Fix Suggestion" |
-| **Agent Swarm Mode** | Chat with AI in natural language | "Fix all unhealthy containers and notify me" |
+| **🔧 Runbook Mode** | Drag-and-drop workflow builder (like Zapier for containers) | `If container unhealthy → restart → send alert` |
+| **📊 Monitor Mode** | Real-time dashboard with one-click actions | Click "Restart Container" or "AI Fix Suggestion" |
+| **🤖 Agent Swarm Mode** | Chat with AI in natural language | `"Fix all unhealthy containers and notify me"` |
+
+### 🔧 Runbook Mode — Drag-and-Drop Workflow Builder
+
+<img width="1918" alt="workflow" src="https://github.com/user-attachments/assets/7b0fec37-3843-4019-b0be-815f22a703ff" />
+
+### 📊 Monitor Mode — Real-Time Container Dashboard
+
+<img width="1918" alt="Agent-OS-monitor" src="https://github.com/user-attachments/assets/e01acb57-6763-427c-b26e-637b3f94c2ba" />
+
+<img width="1918" alt="Monitor-2" src="https://github.com/user-attachments/assets/8cab548d-2f33-4fb7-a955-9f156c36ae7b" />
+
+### 🤖 Agent Swarm Mode — Natural Language Automation
+
+<img width="1918" alt="Agent-1" src="https://github.com/user-attachments/assets/a461546b-956e-4ee2-b964-075ca77f8981" />
+
+<img width="1918" alt="Agent-2" src="https://github.com/user-attachments/assets/302cbd7a-b5d8-4289-b717-2090e5d4e329" />
+
+<img width="1918" alt="Agent-3" src="https://github.com/user-attachments/assets/748d4c6d-ce51-485c-9984-31f2def52601" />
 
 ---
 
-## The Problem
+## Who Is This For?
 
-### Simple Example: "Monitor my database"
+- **Product Managers** — Build workflows to restart services, send alerts, monitor uptime
+- **Support Teams** — Create automated incident response, get AI-powered troubleshooting
+- **Developers** — Manage test environments, analyze logs, deploy containers
+- **Operations** — Monitor production, implement self-healing, manage incidents
 
-**What you want:**
-- Check if database is healthy
-- Alert me if there's a problem
+---
 
-**What actually happens:**
-1. Read container logs (contains passwords, API keys, connection strings)
-2. AI analyzes logs (sends your secrets to external LLM)
-3. Post to Slack (database password appears in channel)
+## The Security Problem
 
-**Result:** Sensitive data exposed
+### A Simple Example: "Monitor my database"
 
-### The Lethal Trifecta Pattern
+What you **think** happens:
+```
+Check if database is healthy → Alert me if there's a problem
+```
 
-Three innocent-looking tools become dangerous together:
+What **actually** happens:
+```
+docker_logs        →  Reads container logs (passwords, API keys, connection strings inside)
+ai_analyze         →  Sends your secrets to an external LLM
+slack_notify       →  Your database password appears in a Slack channel
+```
 
-**Step 1: READ** - Tool accesses private data
-- Examples: docker_logs, health_check
+**Result: Sensitive data exposed.**
 
-**Step 2: PROCESS** - Tool handles content
-- Examples: ai_analyze, execute_command
+### The Lethal Trifecta
 
-**Step 3: EXFILTRATE** - Tool communicates externally
-- Examples: slack_notify, send_email
+Three innocent-looking tools become dangerous in sequence:
 
-**Alone:** Each tool is safe  
-**Together:** Complete data exfiltration chain
+```
+Step 1: READ          docker_logs, health_check        → Accesses private data
+Step 2: PROCESS       ai_analyze, execute_command      → Handles the content
+Step 3: EXFILTRATE    slack_notify, send_email         → Sends it outside
+```
 
-### Why Traditional Security Doesn't Work
+Each tool is safe alone. Together, they form a **complete data exfiltration chain**.
+
+### Why Traditional Security Fails
 
 - Firewall rules don't inspect AI tool calls
-- Access controls already granted to AI
-- Workflows built visually, not coded
-- Attackers bypass with clever prompts
+- Access controls are already granted to the AI
+- Workflows are built visually, not in code
+- Attackers bypass controls with clever prompts
 
-**You need security at the AI orchestration level.**
+> You need security at the **AI orchestration level** — not the network level.
 
 ---
 
 ## The Solution: Archestra Tool Policies
 
-### Platform-Level Security
+AgentOS integrates with **[Archestra](https://archestra.ai)** — an agentic security engine that enforces policies **before** every tool executes, making data exfiltration structurally impossible regardless of what the AI decides.
 
-**Archestra enforces policies BEFORE every tool executes:**
+```
+Without Archestra:   docker_logs → ai_analyze → slack_notify   ❌ Secrets leaked
 
-**Without Policies:**
-docker_logs → ai_analyze → slack_notify  
-Secrets leaked to Slack
+With Archestra:      docker_logs → ai_analyze → [BLOCKED] ✋   ✅ Exfiltration prevented
+```
 
-**With Archestra Policies:**
-docker_logs → ai_analyze → **[ARCHESTRA BLOCKS]** → slack_notify  
-Exfiltration prevented
+### How Archestra Works
 
-### How It Works
+Every MCP tool call in AgentOS is routed through the Archestra Security Engine:
 
-**Archestra Agentic Security Engine:**
-- Intercepts every MCP tool call
-- Checks policies BEFORE execution
-- Blocks dangerous operations
-- Marks data trust levels
-- Sanitizes outputs when needed
-- No bypass possible
+```
+AgentOS workflow triggers tool call
+        ↓
+Archestra intercepts BEFORE execution
+        ↓
+┌─────────────────────────────────┐
+│  Check: Tool Invocation Policy  │  → block_always / block_when_untrusted / allow
+│  Check: Data Context            │  → is this data trusted or untrusted?
+└─────────────────────────────────┘
+        ↓
+  Block or Allow
+        ↓
+  Apply Trusted Data Policy       → mark_as_untrusted / sanitize_with_dual_llm / allow
+        ↓
+  Log result
+```
 
----
-
-## Archestra Tool Policies
-
-### Two Types of Policies
-
-#### 1. Tool Invocation Policies
-
-Controls when tools can execute.
-
-**Policy: block_always**
-
-Tool never executes under any circumstances.
-
-Example:
-- Tool: docker_exec
-- Reason: Shell injection risk
-- Result: Tool completely disabled
-
-**Policy: block_when_context_is_untrusted**
-
-Tool blocked only when using untrusted data.
-
-Example:
-- Tool: slack_notify
-- Reason: Prevent data exfiltration
-- Result:
-  - Manual alerts: Allowed
-  - Alerts from docker_logs: Blocked
-
-**Policy: allow**
-
-Tool executes normally.
-
-Example:
-- Tool: docker_status
-- Reason: Read-only, safe operation
-- Result: Always works
-
-#### 2. Trusted Data Policies
-
-Controls how tool outputs are handled.
-
-**Policy: mark_as_untrusted**
-
-Flag output as potentially dangerous.
-
-Example:
-- Tool: docker_logs
-- Reason: Logs may contain secrets
-- Result: Output flagged, downstream tools restricted
-
-**Policy: sanitize_with_dual_llm**
-
-Check output with TWO independent AIs.
-
-Example:
-- Tool: docker_logs
-- Reason: Detect hidden instructions
-- Result: Two LLMs verify no malicious content before passing forward
-
-**Policy: allow**
-
-Output passes through unchanged.
-
-Example:
-- Tool: docker_status
-- Reason: Safe metadata only
-- Result: No modification needed
+No AI prompt can bypass this. The policy engine is **deterministic code**, not an AI decision.
 
 ---
 
-## How Archestra Enforces Policies
+## Archestra Policy Types
 
-### Real-Time Enforcement Flow
+### 1. Tool Invocation Policies
+Controls **when** a tool is allowed to run.
 
-**User creates workflow:** "Send logs to Slack"
+| Policy | Behavior | Example Use |
+|--------|----------|-------------|
+| `block_always` | Tool never executes | `docker_exec` — shell injection risk |
+| `block_when_context_is_untrusted` | Blocked only when upstream data is untrusted | `slack_notify` — safe manually, dangerous after `docker_logs` |
+| `allow` | Executes normally | `docker_status` — read-only metadata |
 
-**Step 1:** docker_logs executes
-- Archestra applies policy: mark_as_untrusted
-- Output marked: UNTRUSTED
+### 2. Trusted Data Policies
+Controls **how** a tool's output is handled downstream.
 
-**Step 2:** slack_notify attempts to execute
-- Archestra checks policy: block_when_context_is_untrusted
-- Context check: UNTRUSTED
-- Archestra blocks execution
-- Error: "Policy violation: Cannot send untrusted data externally"
+| Policy | Behavior | Example Use |
+|--------|----------|-------------|
+| `mark_as_untrusted` | Flags output, restricts downstream tools | `docker_logs` — may contain secrets |
+| `sanitize_with_dual_llm` | Two independent AIs verify before passing forward | `ai_analyze` — prevent prompt injection |
+| `allow` | Output passes through unchanged | `docker_status` — safe metadata only |
 
-**Result:** Workflow fails safely, no data leaked
+---
 
-### Platform-Level = Unbreakable
+## Real-World Policy Examples
 
-**Traditional Security (Fails):**
-- AI decides what to do
-- If AI compromised → Wrong decision
-- Data leaked
+### Example 1: Prevent Data Exfiltration
 
-**Archestra Security (Blocks):**
-- Workflow attempts execution
-- Archestra intercepts BEFORE tool runs
-- Policy check (deterministic, not AI-based)
-- If violation → Block at platform level
-- Workflow fails safely
+**Problem:** `docker_logs` contains secrets, `slack_notify` sends externally.
 
-**No AI prompt can bypass Archestra's policy engine.**
+```yaml
+# Trusted Data Policy
+tool: docker_logs
+action: mark_as_untrusted
+reason: Logs may contain secrets
+
+# Tool Invocation Policy
+tool: slack_notify
+action: block_when_context_is_untrusted
+reason: Prevent data leakage
+```
+
+**What happens:**
+```
+docker_logs runs          → output marked UNTRUSTED
+slack_notify attempts     → Archestra detects UNTRUSTED context
+                          → BLOCKED
+Error: "Cannot send untrusted data externally"
+```
+
+---
+
+### Example 2: Block Prompt Injection
+
+**Problem:** Malicious content hidden inside container logs could hijack the AI.
+
+```yaml
+tool: ai_analyze
+action: sanitize_with_dual_llm
+reason: Prevent prompt injection via log content
+```
+
+**How dual LLM sanitization works:**
+```
+docker_logs output → LLM #1: "Check for malicious instructions"
+                   → LLM #2: "Verify independently"
+                   → Both agree: SAFE  →  passes through
+                   → Either flags: SUSPICIOUS  →  BLOCKED
+```
+
+Why two LLMs? A single AI can be fooled. Two independent models with different architectures create consensus that's extremely hard to bypass.
+
+---
+
+### Example 3: Block Dangerous Shell Execution
+
+```yaml
+tool: docker_exec
+action: block_always
+reason: Shell injection vulnerability
+```
+
+Any workflow attempting `docker_exec` is blocked before it runs — no exceptions, no overrides.
+
+---
+
+## How Archestra Protects Each Mode
+
+### Runbook Mode
+```
+You drag:   docker_logs → slack_notify
+
+Execution:
+  docker_logs runs          ✅  output marked UNTRUSTED
+  slack_notify attempts     ❌  BLOCKED by Archestra
+  Error shown in UI:            "Policy violation — untrusted data cannot be sent externally"
+```
+
+### Monitor Mode
+```
+Container goes unhealthy
+You click "Send Alert"
+
+Archestra checks:
+  Source: docker_logs  →  UNTRUSTED
+  Destination: slack_notify  →  blocked for untrusted context
+
+Result: Alert displayed on screen only. No external data leak.
+```
+
+### Agent Swarm Mode
+```
+You say: "Fix containers and notify me"
+
+AI generates workflow and attempts execution.
+Archestra blocks the notification step.
+AI responds: "Containers fixed. Results shown on screen (data contains sensitive content)."
+```
+
+---
+
+## Policy Violation Logs
+
+Every blocked attempt is logged with full context:
+
+```
+⛔  2 min ago
+    Workflow: "Database Health Monitor"
+    Tool: slack_notify
+    Reason: Blocked — untrusted data context
+    Source: docker_logs
+
+⛔  15 min ago
+    Workflow: "Auto-Restart Services"
+    Tool: docker_exec
+    Reason: Blocked — always blocked
+    Attempted: restart service
+
+⚠️  1 hour ago
+    Workflow: "Log Analysis"
+    Tool: ai_analyze
+    Action: Sanitized — dual LLM applied
+    Detected: Potential prompt injection attempt
+```
+
+---
+
+## Recommended Production Policies
+
+```yaml
+# Block dangerous execution
+docker_exec:   block_always
+docker_run:    block_always
+
+# Mark data sources as untrusted
+docker_logs:   mark_as_untrusted + sanitize_with_dual_llm
+health_check:  mark_as_untrusted
+
+# Restrict external communication
+slack_notify:   block_when_context_is_untrusted
+email_send:     block_when_context_is_untrusted
+webhook_post:   block_when_context_is_untrusted
+
+# Allow safe read-only operations
+docker_status:  allow
+docker_list:    allow
+docker_restart: allow  # with validation
+```
 
 ---
 
 ## Architecture
 
-### How Archestra Protects AgentOS
-
-**AgentOS Platform:**
-- Three modes: Runbook, Monitor, Agent Swarm
-- Workflow Execution Engine
-- MCP Tool Registry (docker_logs, ai_analyze, slack_notify, health_check)
-
-**Archestra AI Platform:**
-
-**Agentic Security Engine:**
-- Before every MCP tool call:
-  1. Check tool invocation policy
-  2. Check data context (trusted or untrusted)
-  3. Block or allow execution
-
-- After every MCP tool call:
-  1. Apply trusted data policy
-  2. Mark output trust level
-  3. Sanitize if configured
-
-**Policy Registry:**
-- Tool Invocation Policies (which tools can run when)
-- Trusted Data Policies (how to handle outputs)
-
-### Security Flow
-
-1. AgentOS workflow calls MCP tool
-2. Call routed through Archestra
-3. Archestra Security Engine intercepts
-4. Checks tool invocation policy
-5. Checks data context (trusted/untrusted)
-6. Blocks if policy violation detected
-7. If allowed, executes and marks output
-8. Applies trusted data policies
-
----
-
-## How Policies Protect All Three Modes
-
-### Runbook Mode (Drag-and-Drop)
-
-**Without Policies:**
-- You drag: docker_logs → slack_notify
-- Workflow executes: Secrets sent to Slack
-
-**With Archestra Policies:**
-- You drag: docker_logs → slack_notify
-- Workflow executes:
-  - docker_logs runs, output marked UNTRUSTED
-  - slack_notify blocked by Archestra
-  - Error shown: "Policy violation"
-- Your secrets stay safe
-
-### Monitor Mode (One-Click Dashboard)
-
-**Without Policies:**
-- Container unhealthy
-- Click "Send Alert"
-- Result: Logs with secrets sent to Slack
-
-**With Archestra Policies:**
-- Container unhealthy
-- Click "Send Alert"
-- Archestra checks:
-  - Source: docker_logs (UNTRUSTED)
-  - Destination: slack_notify (blocked for untrusted)
-- Result: Alert blocked, show on screen instead
-
-### Agent Swarm Mode (Natural Language)
-
-**Without Policies:**
-- You: "Fix containers and notify me"
-- AI creates workflow
-- Executes: Sends sensitive logs to Slack
-
-**With Archestra Policies:**
-- You: "Fix containers and notify me"
-- AI creates workflow
-- Archestra blocks notification step
-- AI reports: "Containers fixed. Results on screen (contains sensitive data)"
-
----
-
-## Policy Examples
-
-### Example 1: Prevent Data Exfiltration
-
-**Problem:** docker_logs contains secrets, slack_notify sends externally
-
-**Policies Applied:**
-
-Tool Invocation Policy:
-- Tool: slack_notify
-- Action: block_when_context_is_untrusted
-- Reason: Prevent data leakage
-
-Trusted Data Policy:
-- Tool: docker_logs
-- Action: mark_as_untrusted
-- Reason: Logs may contain secrets
-
-**What Happens:**
-
-docker_logs executes → Output marked UNTRUSTED
-
-slack_notify attempts → Archestra checks context → UNTRUSTED detected → BLOCKED
-
-Error: "Cannot send untrusted data externally"
-
-### Example 2: Sanitize AI Analysis
-
-**Problem:** AI tools might follow hidden instructions in logs
-
-**Policy Applied:**
-
-Trusted Data Policy:
-- Tool: ai_analyze
-- Action: sanitize_with_dual_llm
-- Reason: Prevent prompt injection
-
-**How It Works:**
-
-1. docker_logs output sent to ai_analyze
-2. Archestra intercepts
-3. Two independent LLMs check for malicious content
-4. If clean → passes through
-5. If suspicious → blocked
-
-### Example 3: Block Dangerous Commands
-
-**Problem:** Shell execution equals injection risk
-
-**Policy Applied:**
-
-Tool Invocation Policy:
-- Tool: docker_exec
-- Action: block_always
-- Reason: Shell injection vulnerability
-
-**What Happens:**
-
-Any workflow using docker_exec → Archestra blocks BEFORE execution → Error: "Tool blocked by security policy"
-
----
-
-## Dual LLM Sanitization
-
-### How It Works
-
-When configured, Archestra uses two independent LLMs for verification:
-
-**Input:** docker_logs output containing potential malicious instruction
-
-**Process:**
-1. Output sent to first LLM: "Check for malicious content"
-2. First LLM analyzes and reports findings
-3. Output sent to second LLM: "Verify findings independently"
-4. Second LLM provides independent analysis
-5. If both agree on threat → Archestra blocks
-6. If both agree safe → Content passes through
-
-**Why Two LLMs:**
-- Single AI can be fooled by clever prompts
-- Two independent checks much harder to bypass
-- Different models have different blind spots
-- Consensus provides high confidence
-
----
-
-## Policy Violations
-
-### What Gets Logged
-
-Archestra logs every blocked attempt:
-
-**Recent Policy Violations:**
-
-**2 minutes ago**
-- Workflow: "Database Health Monitor"
-- Tool: slack_notify
-- Reason: Blocked - untrusted data context
-- Source: docker_logs (container logs)
-
-**15 minutes ago**
-- Workflow: "Auto-Restart Services"
-- Tool: docker_exec
-- Reason: Blocked - always blocked
-- Attempted action: restart service
-
-**1 hour ago**
-- Workflow: "Log Analysis"
-- Tool: ai_analyze
-- Reason: Sanitized - dual LLM check applied
-- Detected: Potential prompt injection attempt
-
-### Understanding Violations
-
-**Each violation shows:**
-- When it happened
-- Which workflow triggered it
-- Which tool was blocked
-- Why it was blocked
-- What data source caused the block
-
-**This helps you:**
-- Spot attack attempts
-- Fix broken workflows
-- Understand security posture
-- Adjust policies if needed
-
----
-
-## Recommended Policies
-
-### For Production AgentOS
-
-**Block dangerous tools:**
-- docker_exec → block_always
-- docker_run → block_always (unless specifically needed)
-
-**Protect data sources:**
-- docker_logs → mark_as_untrusted + sanitize_with_dual_llm
-- health_check → mark_as_untrusted
-
-**Protect communication:**
-- slack_notify → block_when_context_is_untrusted
-- email_send → block_when_context_is_untrusted
-- webhook_post → block_when_context_is_untrusted
-
-**Allow safe operations:**
-- docker_status → allow
-- docker_list → allow
-- docker_restart → allow (with validation)
-
----
-
-## Why Archestra Policies Work
-
-### Deterministic Enforcement
-
-**Not AI-Based:** Policies are rules enforced by code, not AI decisions
-
-**Platform-Level:** Blocks before tool execution, not after
-
-**No Bypass:** Even compromised AI cannot override policies
-
-**Context-Aware:** Tracks data flow through entire workflow
-
-**Real-Time:** Every tool call checked, every time
-
-### Key Security Principles
-
-**Defense in Depth:**
-- Multiple policy types work together
-- Tool invocation + trusted data policies
-- Dual verification for critical operations
-
-**Zero Trust:**
-- All external data marked untrusted
-- All container data marked untrusted
-- Trust must be explicitly granted
-
-**Fail Secure:**
-- If policy check fails → Block
-- If context unclear → Block
-- If sanitization fails → Block
-- Default to deny
+```
+┌─────────────────────────────────────────────┐
+│                  AgentOS                     │
+│  ┌──────────┐ ┌──────────┐ ┌─────────────┐  │
+│  │ Runbook  │ │ Monitor  │ │ Agent Swarm │  │
+│  └────┬─────┘ └────┬─────┘ └──────┬──────┘  │
+│       └────────────┴──────────────┘          │
+│              Workflow Execution Engine        │
+│              MCP Tool Registry               │
+└─────────────────┬───────────────────────────┘
+                  │ Every tool call
+                  ↓
+┌─────────────────────────────────────────────┐
+│              Archestra Security              │
+│                                             │
+│  ┌──────────────────────────────────────┐   │
+│  │         Agentic Security Engine      │   │
+│  │  • Intercept every MCP call          │   │
+│  │  • Check invocation policy           │   │
+│  │  • Check data trust context          │   │
+│  │  • Block or allow                    │   │
+│  │  • Mark output trust level           │   │
+│  │  • Sanitize with dual LLM if needed  │   │
+│  └──────────────────────────────────────┘   │
+│                                             │
+│  ┌──────────────┐  ┌──────────────────────┐ │
+│  │ Invocation   │  │  Trusted Data        │ │
+│  │ Policies     │  │  Policies            │ │
+│  └──────────────┘  └──────────────────────┘ │
+└─────────────────────────────────────────────┘
+                  │
+                  ↓
+         Docker Containers
+```
 
 ---
 
 ## Getting Started
 
-### Step 1: Enable Archestra
+**Total setup time: ~20 minutes**
 
-Configure AgentOS to connect to Archestra platform.
-
-**Required settings:**
-- Archestra proxy URL
-- Authentication token
+### Step 1 — Enable Archestra (5 min)
+Configure AgentOS to connect to the Archestra platform:
+- Set Archestra proxy URL
+- Add authentication token
 - Enable policy enforcement
 
-**Time: 5 minutes**
-
-### Step 2: Create Basic Policies
-
-Apply essential security policies through Archestra:
-
-**Essential policies:**
-- Block external communication with untrusted data
+### Step 2 — Apply Basic Policies (10 min)
+Set these essential policies through the Archestra dashboard:
+- Block external comms with untrusted data
 - Mark container logs as untrusted
 - Sanitize AI analysis outputs
-- Block dangerous shell execution
+- Block shell execution tools
 
-**Time: 10 minutes**
+### Step 3 — Test Protection (5 min)
+Create a test workflow: `docker_logs → slack_notify` and run it.
 
-### Step 3: Test Protection
+Expected result:
+```
+❌ Policy Violation
+   Tool: slack_notify
+   Reason: Cannot send untrusted data externally
+   Your data stayed safe.
+```
 
-Create test workflow: docker_logs → slack_notify
-
-Attempt to execute.
-
-**Expected result:**
-- Policy Violation error
-- slack_notify blocked by Archestra
-- Reason shown: "Cannot send untrusted data externally"
-- Your data stays protected
-
-**Time: 5 minutes**
-
-### Step 4: Monitor Violations
-
-Check Archestra violation logs regularly to see blocked attempts.
-
-**Look for:**
-- Unusual blocking patterns
-- Attack attempts
-- Workflows that need fixing
-- Policy adjustments needed
-
-**Ongoing activity**
-
-**Total setup: 20 minutes**
+### Step 4 — Monitor Violations (ongoing)
+Review Archestra violation logs regularly to spot attack attempts, fix broken workflows, and tune policies.
 
 ---
 
+## Why Archestra Policies Work
 
-## Summary
+| Property | Detail |
+|----------|--------|
+| **Deterministic** | Rules enforced by code, not AI decisions |
+| **Platform-level** | Blocks before tool execution, not after |
+| **No bypass** | Even a compromised AI cannot override policies |
+| **Context-aware** | Tracks data trust through the entire workflow |
+| **Real-time** | Every tool call checked, every time |
+| **<1ms overhead** | No meaningful performance impact |
 
-### The Problem
-- AgentOS workflows can accidentally leak secrets
-- Simple tool combinations create data exfiltration chains (Lethal Trifecta)
-- Traditional security doesn't work at AI orchestration level
-- Attackers exploit: READ → PROCESS → EXFILTRATE pattern
+### Security Principles
 
-### The Solution: Archestra Tool Policies
+- **Defense in Depth** — Tool invocation policies + trusted data policies + dual LLM verification work together
+- **Zero Trust** — All container data and external data starts as untrusted; trust must be explicitly granted
+- **Fail Secure** — If policy check fails, if context is unclear, if sanitization fails → block. Default to deny.
 
-**Tool Invocation Policies:**
-- block_always: Never allow execution
-- block_when_context_is_untrusted: Block when using unsafe data
-- allow: Permit execution
+---
 
-**Trusted Data Policies:**
-- mark_as_untrusted: Flag dangerous outputs
-- sanitize_with_dual_llm: Verify with two independent AIs
-- allow: Pass through unchanged
+## Demo
 
-**Enforcement:**
-- Platform-level blocking before tool execution
-- Deterministic rules, not AI decisions
-- Context-aware data flow tracking
-- No bypass possible
+▶ [Watch the full demo on YouTube](https://youtu.be/-6d2XvXcMlk)
 
-### Benefits
+---
 
-**For Everyone:**
-- 20-minute setup
-- Zero maintenance
-- All three modes protected automatically
-- Enterprise-grade security
+## License
 
-**Technical Details:**
-- Less than 1ms overhead per tool call
-- Real-time violation logging
-- Terraform infrastructure as code support
-- Team-level policy customization
-
+MIT
