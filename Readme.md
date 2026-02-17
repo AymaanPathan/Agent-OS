@@ -393,13 +393,3 @@ Review Archestra violation logs regularly to spot attack attempts, fix broken wo
 - **Fail Secure** — If policy check fails, if context is unclear, if sanitization fails → block. Default to deny.
 
 ---
-
-## Demo
-
-▶ [Watch the full demo on YouTube](https://youtu.be/-6d2XvXcMlk)
-
----
-
-## License
-
-MIT
