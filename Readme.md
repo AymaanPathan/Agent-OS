@@ -2,10 +2,7 @@
 
 > Build, run, and monitor intelligent operational workflows using AI agent orchestration and MCP tools — with enterprise-grade security powered by **Archestra**.
 
-![License](https://img.shields.io/badge/license-MIT-green?style=flat-square)
-![Docker](https://img.shields.io/badge/built_with-Docker-blue?style=flat-square)
-![MCP](https://img.shields.io/badge/tools-MCP-purple?style=flat-square)
-![Archestra](https://img.shields.io/badge/security-Archestra-orange?style=flat-square)
+
 
 <br />
 
