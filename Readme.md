@@ -1,4 +1,4 @@
-# 🤖 AgentOS — AI-Powered DevOps Automation
+#  AgentOS — AI-Powered DevOps Automation
 
 > Build, run, and monitor intelligent operational workflows using AI agent orchestration and MCP tools — with enterprise-grade security powered by **Archestra**.
 
